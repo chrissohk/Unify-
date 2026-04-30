@@ -1,0 +1,20 @@
+{
+  "name": "soundcloud-spotify-multiplayer",
+  "version": "1.0.0",
+  "description": "Unified queue MVP for Spotify and SoundCloud",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "cross-env NODE_ENV=test node --test",
+    "test:e2e": "cross-env NODE_ENV=test playwright test",
+    "test:all": "npm run test && npm run test:e2e"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "cross-env": "^7.0.3",
+    "supertest": "^7.1.1"
+  }
+}

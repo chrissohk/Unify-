@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Unified Spotify + SoundCloud Queue</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="https://w.soundcloud.com/player/api.js"></script>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Unified Queue MVP</h1>
+      <p>Connect Spotify + SoundCloud accounts, search, and queue in one player.</p>
+
+      <section class="card">
+        <h2>Provider Connections</h2>
+        <div id="providerControls"></div>
+      </section>
+
+      <section class="card">
+        <h2>Search Tracks</h2>
+        <form id="searchForm">
+          <label>
+            Provider
+            <select id="searchProvider">
+              <option value="spotify">Spotify</option>
+              <option value="soundcloud">SoundCloud</option>
+            </select>
+          </label>
+          <label>
+            Search
+            <input id="searchQuery" type="text" placeholder="title or artist" />
+          </label>
+          <button type="submit">Search</button>
+        </form>
+        <ul id="searchResults"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Queue</h2>
+        <p id="queueStatusText">Status: idle</p>
+        <p id="nextUpText" class="next-up" aria-live="polite"></p>
+        <ul id="queueList"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Now Playing</h2>
+        <p id="nowPlayingText">Nothing playing.</p>
+        <div id="playerHost"></div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

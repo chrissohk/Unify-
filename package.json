@@ -1,6 +1,6 @@
 {
   "name": "soundcloud-spotify-multiplayer",
-  "version": "1.0.0",
+  "version": "1.1.0.0",
   "description": "Unified queue MVP for Spotify and SoundCloud",
   "main": "server.js",
   "scripts": {
@@ -10,6 +10,8 @@
     "test:all": "npm run test && npm run test:e2e"
   },
   "dependencies": {
+    "better-sqlite3": "^11.7.0",
+    "dotenv": "^17.4.2",
     "express": "^4.19.2"
   },
   "devDependencies": {

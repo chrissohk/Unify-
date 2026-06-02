@@ -2,6 +2,220 @@
 
 This is a lightweight MVP that lets you queue tracks from Spotify and SoundCloud in one list and automatically advance to the next track.
 
+**New here?** Start with [Quick start (step by step)](#quick-start-step-by-step) below. Technical details for developers are in [For developers](#for-developers).
+
+---
+
+## Quick start (step by step)
+
+This guide assumes you are **not** a programmer. You will install a small program on your computer, open the app in your browser, and (optionally) link your own Spotify and SoundCloud accounts. The app runs **only on your computer** — it is not hosted for you on the internet unless you set that up yourself later.
+
+### What you need
+
+- A Windows, Mac, or Linux computer
+- An internet connection
+- A web browser (Chrome, Edge, or Firefox recommended)
+- About 30–60 minutes the first time (mostly for creating free developer accounts)
+- For **real Spotify playback**: a **Spotify Premium** subscription on the account you connect. For **real Soundcloud playback**: a **Soundcloud Artist Pro** subscription on the account you connect
+- Your own **Spotify** and **SoundCloud** logins (for the full experience)
+
+This project does **not** include the author’s passwords or API keys. You will create your own free “developer app” on Spotify and SoundCloud and paste those codes into a file on your machine.
+
+### Step 1 — Install Node.js
+
+Node.js lets your computer run this app.
+
+1. Go to [https://nodejs.org](https://nodejs.org) and download the **LTS** version (recommended).
+2. Run the installer and accept the defaults.
+3. Check that it worked:
+   - **Windows:** open **PowerShell** (search “PowerShell” in the Start menu).
+   - **Mac:** open **Terminal** (Applications → Utilities → Terminal).
+   - Type: `node -v` and press Enter. You should see a version number (for example `v22.x.x`).
+
+### Step 2 — Get the project files
+
+**Option A — Git (if you use GitHub)**
+
+```bash
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+cd YOUR_REPO_NAME
+```
+
+Replace the URL with the real link from the GitHub page (green **Code** button).
+
+**Option B — Download ZIP (no Git)**
+
+1. On GitHub, click **Code** → **Download ZIP**.
+2. Unzip the folder (for example to your Desktop).
+3. Open PowerShell or Terminal, then go into that folder. Example (Windows):
+
+   ```powershell
+   cd "$env:USERPROFILE\Desktop\YOUR_FOLDER_NAME"
+   ```
+
+   Example (Mac):
+
+   ```bash
+   cd ~/Desktop/YOUR_FOLDER_NAME
+   ```
+
+### Step 3 — Install the app’s dependencies
+
+In the same PowerShell or Terminal window (inside the project folder), run:
+
+```bash
+npm install
+```
+
+Wait until it finishes without errors. This only needs to be done once (or again after updating the project).
+
+### Step 4 — Create your settings file (`.env`)
+
+The app reads secret codes from a file named `.env` on **your** computer. That file is **not** on GitHub.
+
+**Windows (PowerShell), in the project folder:**
+
+```powershell
+Copy-Item .env.example .env
+```
+
+**Mac or Linux:**
+
+```bash
+cp .env.example .env
+```
+
+You can open `.env` in **Notepad** (Windows) or **TextEdit** (Mac — use “Plain Text” mode). You will paste API codes into it in Step 6.
+
+---
+
+### Two ways to run the app
+
+| Path | API keys needed? | What you get |
+|------|------------------|--------------|
+| **A — Try it quickly** | No (leave `.env` IDs empty) | App opens; demo/sample search results; good to see the interface |
+| **B — Full experience** | Yes (Step 6) | Real search, your playlists/likes, real playback with your accounts |
+
+You can do Path A first, then Path B when you are ready.
+
+---
+
+### Step 5 — Start the app
+
+In the project folder, run:
+
+```bash
+npm start
+```
+
+Leave this window **open** while you use the app. You should see a message that the server is running on port **3000**.
+
+Open your browser and go to **exactly**:
+
+**http://127.0.0.1:3000**
+
+(You can also try `http://localhost:3000`, but for Step 6 you must use the **same** address everywhere — see below.)
+
+**Do not** open the file `public/index.html` by double-clicking it. The app must be loaded through the address above while `npm start` is running.
+
+To stop the app later: click the terminal window and press **Ctrl+C**.
+
+---
+
+### Step 6 — Connect your real Spotify and SoundCloud (Path B)
+
+Skip this if you only want Path A (demo mode).
+
+You need to register two free developer applications — one on Spotify, one on SoundCloud — and copy four values into `.env`.
+
+**Important:** Use the same website address everywhere. This guide uses `127.0.0.1` and port `3000`. Do not mix `localhost` and `127.0.0.1` — they are treated as different sites.
+
+#### SoundCloud
+
+1. Sign in at the [SoundCloud developer portal](https://developers.soundcloud.com/) and create an application.
+2. Find **Redirect URI** (or callback URL) in the app settings and add **exactly**:
+   ```
+   http://127.0.0.1:3000/api/oauth/soundcloud/callback
+   ```
+3. Copy your app’s **Client ID** and **Client Secret**.
+4. Open `.env` in Notepad and fill in (no quotes around the values):
+   - `SOUNDCLOUD_CLIENT_ID=` paste Client ID after the `=`
+   - `SOUNDCLOUD_CLIENT_SECRET=` paste Client Secret after the `=`
+   - `SOUNDCLOUD_REDIRECT_URI=http://127.0.0.1:3000/api/oauth/soundcloud/callback`
+5. Save the file.
+
+#### Spotify
+
+1. Sign in at the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) and create an app.
+2. Open the app → **Settings** → **Redirect URIs** → add **exactly**:
+   ```
+   http://127.0.0.1:3000/api/oauth/spotify/callback
+   ```
+3. Copy **Client ID** and **Client Secret** from the dashboard.
+4. In `.env`, fill in:
+   - `SPOTIFY_CLIENT_ID=`
+   - `SPOTIFY_CLIENT_SECRET=`
+   - `SPOTIFY_REDIRECT_URI=http://127.0.0.1:3000/api/oauth/spotify/callback`
+5. Save the file.
+
+**Spotify Premium** is required for playback inside this app (Spotify’s rule for the Web Player).
+
+#### Apply your changes
+
+1. If `npm start` is still running, stop it (**Ctrl+C**).
+2. Run `npm start` again.
+3. Open **http://127.0.0.1:3000** in the browser.
+
+More detail (redirect URI checklist, optional scopes): [OAuth setup (your own API credentials)](#oauth-setup-your-own-api-credentials).
+
+---
+
+### Step 7 — Use the app in your browser
+
+1. **Connect your accounts**  
+   In the **Connections** area (or next to each service), click **Connect** for Spotify and SoundCloud.  
+   Your browser will open Spotify or SoundCloud’s login page. Sign in and approve access. You will return to the app automatically.
+
+2. **Search for music**  
+   - Open the **Spotify** section, type in the search box, click **Search**, and add tracks you like.  
+   - Open the **SoundCloud** section and do the same.  
+   You can mix both services in one queue.
+
+3. **Build your queue**  
+   Add songs from search results (or from playlists/likes on SoundCloud when connected). Tracks appear under **Up next**.
+
+4. **Play**  
+   Start playback from the queue. **Now playing** shows the current song. When a song ends, the app tries to play the next one in the list.
+
+5. **Manage the queue**  
+   Use **Up** / **Down** to reorder upcoming tracks, or remove tracks you do not want.
+
+6. **Disconnect**  
+   Click **Disconnect** if you want to sign out of a service on this computer.
+
+**After you close the terminal or restart the computer:** run `npm start` again, open **http://127.0.0.1:3000**, and click **Connect** again for Spotify and SoundCloud (your login is remembered by Spotify/SoundCloud in the browser, but this app needs a fresh connection each time the server restarts).
+
+---
+
+### Common problems (plain language)
+
+| What you see | What to try |
+|--------------|-------------|
+| Blank page or “can’t connect” | Is `npm start` still running? Use **http://127.0.0.1:3000**, not a file from the folder. |
+| Connect fails or “OAuth not configured” | Path B: check `.env` has Client ID and Secret filled in; restart `npm start`. |
+| “Redirect URI mismatch” after login | The URL in Spotify/SoundCloud settings must **match** `.env` character for character (including `127.0.0.1` vs `localhost`). |
+| Spotify will not play audio | You need **Spotify Premium** on the account you connected. |
+| Search shows odd demo tracks only | API keys missing or Connect not done — complete Step 6 and Connect again. |
+| Worked yesterday, not today | Run `npm start` again and **Connect** both services again. |
+
+If you are comfortable with technical tools, open the browser’s developer console (F12) → **Network** tab to see failed requests; see also [Run locally](#run-locally) for developers.
+
+---
+
+## For developers
+
+The sections below describe features, architecture, testing, and deployment in more technical terms.
+
 ## What works right now
 
 - Connect Spotify and SoundCloud via **OAuth** (your own app credentials in `.env`); mock catalogs work without OAuth for local demos

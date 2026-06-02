@@ -3135,8 +3135,10 @@ const setSpotifyPlaylistLoading = (loading) => {
   spotifyPlaylistLoading.setAttribute("aria-hidden", loading ? "false" : "true");
   scrollEl?.classList.toggle("is-library-loading", loading);
   if (spotifyLibraryGroups) {
-    spotifyLibraryGroups.hidden = loading;
-    spotifyLibraryGroups.setAttribute("aria-hidden", loading ? "true" : "false");
+    const hasStatus = Boolean(spotifyPlaylistStatus && !spotifyPlaylistStatus.hidden);
+    const hideGroups = loading || hasStatus;
+    spotifyLibraryGroups.hidden = hideGroups;
+    spotifyLibraryGroups.setAttribute("aria-hidden", hideGroups ? "true" : "false");
   }
   if (loading && spotifyPlaylistStatus) {
     spotifyPlaylistStatus.hidden = true;

@@ -123,7 +123,7 @@ cd Unify-
    cd ~/Desktop/Unify--main
    ```
 
-You are in the right place when this folder contains `package.json` and `README.md`.
+You are in the right place when this folder contains `package.json` and `README.md`. Remember this folder path — your **`.env`** file (Step 4) and every command (`npm install`, `npm start`) must use this **same** folder.
 
 ### Step 3 — Install the app’s dependencies
 
@@ -152,11 +152,45 @@ Wait until it finishes **without** red `npm error` lines. This only needs to be 
    npm install
    ```
 
-### Step 4 — Create your settings file (`.env`)
+### Step 4 — Find and create your settings file (`.env`)
 
-The app reads secret codes from a file named `.env` on **your** computer. That file is **not** on GitHub.
+The app reads your Spotify and SoundCloud **Client ID** and **Client Secret** from a file named **`.env`**. That file lives **on your computer only** — it is **not** on GitHub, and you must never upload it or email it to anyone.
 
-**Windows (PowerShell), in the project folder:**
+#### Which file do I edit?
+
+| File | Do you put secrets here? |
+|------|---------------------------|
+| **`.env`** | **Yes.** This is the only file you edit. |
+| **`.env.example`** | **No.** This is a blank template. Leave it empty. |
+
+If you only see **`.env.example`** and no **`.env`**, create `.env` once (see below).
+
+#### Where is the `.env` file? (depends how you got the project)
+
+The `.env` file must sit in the **same folder** as `README.md` and `package.json` — your **project folder**. That folder is different depending on whether you cloned or downloaded a ZIP:
+
+| How you got the project | Usual folder name on Desktop | Full path example (Windows, OneDrive Desktop) |
+|-------------------------|------------------------------|-----------------------------------------------|
+| **Git clone** (Option A in Step 2) | **`Unify-`** | `C:\Users\YourName\OneDrive\Desktop\Unify-\` |
+| **ZIP download** (Option B in Step 2) | **`Unify--main`** (name can vary) | `C:\Users\YourName\OneDrive\Desktop\Unify--main\` |
+
+**Important:** If you have **two** folders (for example `Unify-` and `Soundcloud and Spotify Multiplayer`), you must use **one** folder for everything: `cd` there, run `npm install` and `npm start` there, and put **`.env`** in **that same** folder. Editing `.env` in a different folder is the most common reason Connect says **“OAuth not configured”**.
+
+**Find the folder in File Explorer (Windows):**
+
+1. Open **File Explorer**.
+2. Go to **Desktop** (or **OneDrive → Desktop** if you use OneDrive).
+3. Open the project folder (`Unify-` or `Unify--main`).
+4. You should see files such as `README.md`, `package.json`, and `.env.example`.
+5. After you create it, you will also see **`.env`** in this same folder.
+
+**Show hidden files if you do not see `.env`:** In File Explorer, click **View** → turn on **Hidden items**. Files whose names start with a dot (like `.env`) are sometimes hidden.
+
+#### Create `.env` from the template (one time)
+
+Open **PowerShell**, go to your project folder (same `cd` commands as Step 2), then run **one** of these:
+
+**Windows:**
 
 ```powershell
 Copy-Item .env.example .env
@@ -168,7 +202,37 @@ Copy-Item .env.example .env
 cp .env.example .env
 ```
 
-You can open `.env` in **Notepad** (Windows) or **TextEdit** (Mac — use “Plain Text” mode). You will paste API codes into it in Step 6.
+#### How to open and edit `.env` (Windows, plain steps)
+
+1. In **File Explorer**, open your project folder (`Unify-` or `Unify--main`).
+2. Right‑click the file **`.env`** → **Open with** → **Notepad**.  
+   (If Notepad is not listed, choose **Choose another app** → **Notepad**.)
+3. You will see lines like `SPOTIFY_CLIENT_ID=` with nothing (or something) after the `=`.
+4. In [Step 6](#step-6--connect-your-real-spotify-and-soundcloud-path-b), you will paste your codes **immediately after the `=`** on each line.
+5. When finished: **File** → **Save** in Notepad. Close Notepad.
+
+**Mac:** open `.env` in **TextEdit** → **Format** → **Make Plain Text** before saving.
+
+#### Rules when typing in `.env`
+
+- Paste the **Client ID** or **Client Secret** **right after the `=`** with **no spaces** around `=`.
+- **Do not** put quotes around the values unless the developer site explicitly gave you quotes (usually you do **not** need quotes).
+- **Do not** change the redirect lines to end in **`/login`**. They must end in **`/callback`** (Step 6 shows the exact text).
+- Save **`.env`**, not `.env.example`.
+
+**Example** (use your real values, not these):
+
+```env
+SOUNDCLOUD_CLIENT_ID=pasteSoundCloudIdHere
+SOUNDCLOUD_CLIENT_SECRET=pasteSoundCloudSecretHere
+SOUNDCLOUD_REDIRECT_URI=http://127.0.0.1:3000/api/oauth/soundcloud/callback
+
+SPOTIFY_CLIENT_ID=pasteSpotifyIdHere
+SPOTIFY_CLIENT_SECRET=pasteSpotifySecretHere
+SPOTIFY_REDIRECT_URI=http://127.0.0.1:3000/api/oauth/spotify/callback
+```
+
+You can leave all ID/secret lines **empty** for Path A (demo mode). For Path B (real accounts), fill them in Step 6.
 
 ---
 
@@ -209,45 +273,54 @@ To stop the app later: click the terminal window and press **Ctrl+C**.
 
 Skip this if you only want Path A (demo mode).
 
-You need to register two free developer applications — one on Spotify, one on SoundCloud — and copy four values into `.env`.
+You need to register two free developer applications — one on Spotify, one on SoundCloud — and copy four secret codes into **`.env`** in your project folder (see [Step 4](#step-4--find-and-create-your-settings-file-env) for where that file lives).
 
 **Important:** Use the same website address everywhere. This guide uses `127.0.0.1` and port `3000`. Do not mix `localhost` and `127.0.0.1` — they are treated as different sites.
+
+**Common mistake:** The redirect lines in `.env` must end with **`/callback`**, not **`/login`**. The word “login” is only for your browser when you click Connect; Spotify and SoundCloud must redirect back to **`/callback`**.
 
 #### SoundCloud
 
 1. Sign in at the [SoundCloud developer portal](https://developers.soundcloud.com/) and create an application.
-2. Find **Redirect URI** (or callback URL) in the app settings and add **exactly**:
+2. Find **Redirect URI** (or callback URL) in the app settings and add **exactly** (copy this whole line):
    ```
    http://127.0.0.1:3000/api/oauth/soundcloud/callback
    ```
-3. Copy your app’s **Client ID** and **Client Secret**.
-4. Open `.env` in Notepad and fill in (no quotes around the values):
-   - `SOUNDCLOUD_CLIENT_ID=` paste Client ID after the `=`
-   - `SOUNDCLOUD_CLIENT_SECRET=` paste Client Secret after the `=`
-   - `SOUNDCLOUD_REDIRECT_URI=http://127.0.0.1:3000/api/oauth/soundcloud/callback`
-5. Save the file.
+3. Copy your app’s **Client ID** and **Client Secret** from the portal.
+4. Open **`.env`** in Notepad (in the same folder as `package.json` — see Step 4). On each line, paste **only the code** after the `=`:
+   - Find `SOUNDCLOUD_CLIENT_ID=` → paste Client ID immediately after `=`
+   - Find `SOUNDCLOUD_CLIENT_SECRET=` → paste Client Secret immediately after `=`
+   - Find `SOUNDCLOUD_REDIRECT_URI=` → the whole line should be exactly:  
+     `SOUNDCLOUD_REDIRECT_URI=http://127.0.0.1:3000/api/oauth/soundcloud/callback`
+5. **File → Save** in Notepad. Close Notepad.
 
 #### Spotify
 
 1. Sign in at the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) and create an app.
-2. Open the app → **Settings** → **Redirect URIs** → add **exactly**:
+2. Open the app → **Settings** → **Redirect URIs** → add **exactly** (copy this whole line):
    ```
    http://127.0.0.1:3000/api/oauth/spotify/callback
    ```
 3. Copy **Client ID** and **Client Secret** from the dashboard.
-4. In `.env`, fill in:
-   - `SPOTIFY_CLIENT_ID=`
-   - `SPOTIFY_CLIENT_SECRET=`
-   - `SPOTIFY_REDIRECT_URI=http://127.0.0.1:3000/api/oauth/spotify/callback`
-5. Save the file.
+4. Open the same **`.env`** file in Notepad. On each line, paste **only the code** after the `=`:
+   - Find `SPOTIFY_CLIENT_ID=` → paste Client ID immediately after `=`
+   - Find `SPOTIFY_CLIENT_SECRET=` → paste Client Secret immediately after `=`
+   - Find `SPOTIFY_REDIRECT_URI=` → the whole line should be exactly:  
+     `SPOTIFY_REDIRECT_URI=http://127.0.0.1:3000/api/oauth/spotify/callback`
+5. **File → Save** in Notepad. Close Notepad.
 
 **Spotify Premium** is required for playback inside this app (Spotify’s rule for the Web Player).
 
 #### Apply your changes
 
-1. If `npm start` is still running, stop it (**Ctrl+C**).
-2. Run `npm start` again.
-3. Open **http://127.0.0.1:3000** in the browser.
+1. Open **PowerShell** and `cd` into the **same** project folder where **`.env`** lives (Step 2).
+2. If `npm start` is still running, stop it (**Ctrl+C**).
+3. Run `npm start` again.
+4. Look at the text in PowerShell right after the server starts. You want to see:
+   - `Spotify OAuth: configured (SPOTIFY_CLIENT_ID)`
+   - `SoundCloud OAuth: configured (SOUNDCLOUD_CLIENT_ID)`  
+   If you see **“not configured”**, the server is not reading your `.env` — you are in the wrong folder, editing `.env.example` instead of `.env`, or the ID lines are still empty. Fix that before clicking Connect in the browser.
+5. Open **http://127.0.0.1:3000** in the browser and click **Connect** for each service.
 
 More detail (redirect URI checklist, optional scopes): [OAuth setup (your own API credentials)](#oauth-setup-your-own-api-credentials).
 
@@ -287,8 +360,8 @@ More detail (redirect URI checklist, optional scopes): [OAuth setup (your own AP
 | `npm install` fails on `better-sqlite3` or asks for Visual Studio | Install **Node 22 LTS** (not Current 24). Uninstall Node 24 first if needed. Then delete `node_modules` and run `npm install` again (see Step 3). |
 | `cd` says path does not exist | Run the `Get-ChildItem` command in Step 2 Option B and `cd` into the **exact** folder name shown. |
 | Blank page or “can’t connect” | Is `npm start` still running? Use **http://127.0.0.1:3000**, not a file from the folder. |
-| Connect fails or “OAuth not configured” | Path B: check `.env` has Client ID and Secret filled in; restart `npm start`. |
-| “Redirect URI mismatch” after login | The URL in Spotify/SoundCloud settings must **match** `.env` character for character (including `127.0.0.1` vs `localhost`). |
+| `OAuth not configured` or `OAUTH_NOT_CONFIGURED` when you click Connect | Your **`.env`** must be in the **same folder** where you run `npm start` (see Step 4). Edit **`.env`**, not `.env.example`. Fill `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET`, save, restart `npm start`, and check the console says **Spotify OAuth: configured**. |
+| “Redirect URI mismatch” after login | Redirect URLs must end with **`/callback`**, not `/login`. The URL in Spotify/SoundCloud developer settings must **match** `.env` character for character (including `127.0.0.1` vs `localhost`). |
 | Spotify will not play audio | You need **Spotify Premium** on the account you connected. |
 | Search shows odd demo tracks only | API keys missing or Connect not done — complete Step 6 and Connect again. |
 | Worked yesterday, not today | Run `npm start` again and **Connect** both services again. |

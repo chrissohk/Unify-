@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Design System Preview — Unified Queue</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --font-display: "Cabinet Grotesk", system-ui, sans-serif;
+      --font-body: "DM Sans", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, monospace;
+      --bg: #0b0b0c;
+      --surface: #141416;
+      --surface-raised: #1a1a1e;
+      --border: #2a2a2e;
+      --text: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --spotify: #1ed760;
+      --soundcloud: #ff5500;
+      --unified-mid: #7a9488;
+      --gradient-unified: linear-gradient(90deg, #1ed760 0%, #7a9488 50%, #ff5500 100%);
+      --gradient-unified-soft: linear-gradient(
+        90deg,
+        rgba(30, 215, 96, 0.42) 0%,
+        rgba(122, 148, 136, 0.38) 50%,
+        rgba(255, 85, 0, 0.42) 100%
+      );
+      --gradient-unified-metallic: conic-gradient(
+        from 210deg at 50% 50%,
+        #0a3d22 0deg,
+        #2ee66f 28deg,
+        #1ed760 52deg,
+        #ebe6da 148deg,
+        #ff5500 268deg,
+        #0a3d22 360deg
+      );
+      --gradient-spotify-metallic: conic-gradient(
+        from 210deg at 50% 50%,
+        #062e18 0deg,
+        #5dffa8 32deg,
+        #1ed760 58deg,
+        #e2ebe6 152deg,
+        #2ee66f 228deg,
+        #062e18 360deg
+      );
+      --gradient-soundcloud-metallic: conic-gradient(
+        from 210deg at 50% 50%,
+        #4a1800 0deg,
+        #ffaa66 34deg,
+        #ff5500 62deg,
+        #fff0e6 156deg,
+        #ff7733 232deg,
+        #4a1800 360deg
+      );
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --error: #ef4444;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 24px;
+      --space-6: 32px;
+    }
+
+    [data-theme="light"] {
+      --bg: #f6f6f7;
+      --surface: #ffffff;
+      --surface-raised: #f0f0f2;
+      --border: #e4e4e7;
+      --text: #18181b;
+      --text-muted: #71717a;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      font-size: 15px;
+    }
+
+    .wrap {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: var(--space-5) var(--space-4) 64px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-4);
+      margin-bottom: var(--space-6);
+      flex-wrap: wrap;
+    }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: var(--gradient-unified);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin: 0 0 6px;
+    }
+
+    h1, h2, h3 {
+      font-family: var(--font-display);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0;
+    }
+
+    h1 { font-size: clamp(2rem, 5vw, 2.75rem); line-height: 1.1; }
+    h2 { font-size: 1.35rem; margin-bottom: var(--space-3); }
+    h3 { font-size: 1rem; margin-bottom: var(--space-2); color: var(--text-muted); font-weight: 500; }
+
+    .lead { color: var(--text-muted); max-width: 52ch; margin: var(--space-3) 0 0; }
+
+    .theme-toggle {
+      font-family: var(--font-body);
+      font-size: 13px;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    section {
+      margin-bottom: var(--space-6);
+      padding: var(--space-5);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+    }
+
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: var(--space-3);
+    }
+
+    .swatch {
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .swatch-chip { height: 56px; }
+    .swatch-meta {
+      padding: 8px 10px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      background: var(--surface-raised);
+    }
+
+    .type-row {
+      display: grid;
+      gap: var(--space-4);
+    }
+
+    .type-sample {
+      padding: var(--space-4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface-raised);
+    }
+
+    .type-sample .label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .display-sample {
+      font-family: var(--font-display);
+      font-size: 2.25rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+    }
+
+    .body-sample { font-family: var(--font-body); font-size: 1rem; }
+    .mono-sample { font-family: var(--font-mono); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+    .components {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      align-items: center;
+    }
+
+    .btn {
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 10px 16px;
+      border-radius: var(--radius-sm);
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-unified {
+      background: var(--gradient-unified);
+      color: #0b0b0c;
+      border: none;
+    }
+    .btn-spotify { background: var(--spotify); color: #052e14; }
+    .btn-soundcloud { background: var(--soundcloud); color: #fff; }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .alert {
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      border: 1px solid var(--border);
+      flex: 1 1 200px;
+    }
+
+    .alert-success { border-color: #166534; background: rgba(34, 197, 94, 0.12); }
+    .alert-warning { border-color: #92400e; background: rgba(245, 158, 11, 0.12); }
+    .alert-error { border-color: #991b1b; background: rgba(239, 68, 68, 0.12); }
+
+    .mock-app {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    .mock-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: var(--space-4) var(--space-4) 0;
+      gap: var(--space-4);
+    }
+
+    .mock-title {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .mock-connect {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-end;
+    }
+
+    .pill {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+
+    .pill-spotify { border-color: var(--spotify); color: var(--spotify); }
+    .pill-sc { border-color: var(--soundcloud); color: var(--soundcloud); }
+
+    .mock-tabs {
+      display: flex;
+      gap: 6px;
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .mock-tab {
+      flex: 1;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface-raised);
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .mock-tab.active-unified {
+      position: relative;
+      border: none;
+      background: linear-gradient(
+        180deg,
+        rgba(30, 215, 96, 0.14) 0%,
+        var(--surface-raised) 55%,
+        rgba(255, 85, 0, 0.12) 100%
+      );
+      color: var(--text);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 0 14px rgba(30, 215, 96, 0.12);
+    }
+
+    .mock-tab.active-unified::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 2px;
+      background: var(--gradient-unified-metallic);
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    .mock-tab.active-spotify {
+      position: relative;
+      border: none;
+      background: linear-gradient(180deg, rgba(30, 215, 96, 0.22) 0%, #142318 100%);
+      color: var(--text);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 0 14px rgba(30, 215, 96, 0.2);
+    }
+
+    .mock-tab.active-spotify::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 2px;
+      background: var(--gradient-spotify-metallic);
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    .mock-tab.active-soundcloud {
+      position: relative;
+      border: none;
+      background: linear-gradient(180deg, rgba(255, 85, 0, 0.24) 0%, #2a1810 100%);
+      color: #fff4ed;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.07),
+        0 0 14px rgba(255, 85, 0, 0.2);
+    }
+
+    .mock-tab.active-soundcloud::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 2px;
+      background: var(--gradient-soundcloud-metallic);
+      -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+
+    .mock-body { padding: var(--space-4); }
+
+    .now-playing {
+      display: grid;
+      grid-template-columns: 96px 1fr auto;
+      gap: var(--space-4);
+      align-items: center;
+      padding: var(--space-4);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      border-left: 3px solid var(--spotify);
+    }
+
+    .art {
+      width: 96px;
+      height: 96px;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, #1a3d28, #0b0b0c);
+    }
+
+    .track-title {
+      font-family: var(--font-display);
+      font-size: 1.125rem;
+      font-weight: 700;
+      margin: 0 0 4px;
+    }
+
+    .track-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    .queue-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin: var(--space-4) 0 var(--space-2);
+    }
+
+    .queue-row {
+      display: grid;
+      grid-template-columns: 28px 1fr auto auto;
+      gap: var(--space-3);
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      font-size: 13px;
+    }
+
+    .queue-row:hover { background: var(--surface-raised); }
+
+    .queue-row.spotify { border-left: 3px solid var(--spotify); }
+    .queue-row.soundcloud { border-left: 3px solid var(--soundcloud); }
+
+    .queue-index {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 3px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-spotify { background: rgba(30, 215, 96, 0.15); color: var(--spotify); }
+    .badge-sc { background: rgba(255, 85, 0, 0.15); color: var(--soundcloud); }
+
+    .duration {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .footnote {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: var(--space-5);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <p class="eyebrow">/design-consultation preview</p>
+        <h1>Unified Queue</h1>
+        <p class="lead">One listening desk for Spotify and SoundCloud. Neutrals carry the UI; brand color marks <em>where</em> each track comes from.</p>
+      </div>
+      <button type="button" class="theme-toggle" id="themeToggle">Toggle light / dark</button>
+    </div>
+
+    <section>
+      <h2>Color palette</h2>
+      <div class="swatches">
+        <div class="swatch"><div class="swatch-chip" style="background:#0B0B0C"></div><div class="swatch-meta">bg #0B0B0C</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:#141416"></div><div class="swatch-meta">surface #141416</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:#2A2A2E"></div><div class="swatch-meta">border #2A2A2E</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:#1ED760"></div><div class="swatch-meta">Spotify #1ED760</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:#FF5500"></div><div class="swatch-meta">SoundCloud #FF5500</div></div>
+        <div class="swatch"><div class="swatch-chip" style="background:linear-gradient(90deg,#1ED760,#7A9488,#FF5500)"></div><div class="swatch-meta">convergence gradient</div></div>
+      </div>
+      <div class="components" style="margin-top:20px">
+        <button class="btn btn-unified">Play queue</button>
+        <button class="btn btn-spotify">Add from Spotify</button>
+        <button class="btn btn-soundcloud">Add from SoundCloud</button>
+        <button class="btn btn-ghost">Disconnect</button>
+      </div>
+      <div class="components" style="margin-top:12px">
+        <div class="alert alert-success">Spotify connected — playback ready</div>
+        <div class="alert alert-warning">SoundCloud token expires in 12 min</div>
+        <div class="alert alert-error">Could not advance — empty queue</div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Typography</h2>
+      <div class="type-row">
+        <div class="type-sample">
+          <div class="label">Cabinet Grotesk — display / titles</div>
+          <div class="display-sample">Unified Queue MVP</div>
+        </div>
+        <div class="type-sample">
+          <div class="label">DM Sans — body / controls</div>
+          <p class="body-sample">Search both catalogs, drag to reorder up next, and let playback advance across providers without switching tabs.</p>
+        </div>
+        <div class="type-sample">
+          <div class="label">JetBrains Mono — durations &amp; indices</div>
+          <p class="mono-sample">#01 · 3:42 · 12:08 elapsed · queue position 2/7</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Product mockup — Now playing + queue</h2>
+      <div class="mock-app">
+        <div class="mock-header">
+          <div class="mock-title">Unified Queue</div>
+          <div class="mock-connect">
+            <span class="pill pill-spotify">Spotify connected</span>
+            <span class="pill pill-sc">SoundCloud connected</span>
+          </div>
+        </div>
+        <div class="mock-tabs">
+          <div class="mock-tab active-unified">Now playing</div>
+          <div class="mock-tab">Spotify search</div>
+          <div class="mock-tab active-spotify" style="opacity:0.5">SoundCloud search</div>
+        </div>
+        <div class="mock-body">
+          <div class="now-playing">
+            <div class="art" aria-hidden="true"></div>
+            <div>
+              <p class="track-title">Midnight City</p>
+              <p class="track-meta">M83 · Spotify · Playing</p>
+            </div>
+            <button class="btn btn-unified">Pause</button>
+          </div>
+          <p class="queue-label">Up next</p>
+          <div class="queue-row spotify">
+            <span class="queue-index">02</span>
+            <span>Starlight — Muse</span>
+            <span class="badge badge-spotify">Spotify</span>
+            <span class="duration">3:58</span>
+          </div>
+          <div class="queue-row soundcloud">
+            <span class="queue-index">03</span>
+            <span>Resonance — Home</span>
+            <span class="badge badge-sc">SC</span>
+            <span class="duration">4:12</span>
+          </div>
+          <div class="queue-row spotify">
+            <span class="queue-index">04</span>
+            <span>Motion — Emotional Oranges</span>
+            <span class="badge badge-spotify">Spotify</span>
+            <span class="duration">2:41</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="footnote">Design consultation preview · see DESIGN.md</p>
+  </div>
+
+  <script>
+    const root = document.documentElement;
+    const btn = document.getElementById("themeToggle");
+    btn.addEventListener("click", () => {
+      const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+    });
+  </script>
+</body>
+</html>

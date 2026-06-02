@@ -4,52 +4,656 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Unified Spotify + SoundCloud Queue</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@400,500,700,800&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/styles.css" />
     <script src="https://w.soundcloud.com/player/api.js"></script>
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
   </head>
-  <body>
-    <main class="container">
-      <h1>Unified Queue MVP</h1>
-      <p>Connect Spotify + SoundCloud accounts, search, and queue in one player.</p>
+  <body class="is-loading">
+    <div class="video-background app-reveal-layer" aria-hidden="true">
+      <video
+        class="video-background__media"
+        data-src="https://stream.mux.com/r6pXRAJb3005XEEbl1hYU1x01RFJDSn7KQApwNGgAHHbU.m3u8"
+        autoplay
+        muted
+        loop
+        playsinline
+        preload="none"
+      ></video>
+      <div class="video-background__scrim"></div>
+    </div>
 
-      <section class="card">
-        <h2>Provider Connections</h2>
-        <div id="providerControls"></div>
-      </section>
+    <main class="container app-reveal-layer" id="appRoot" aria-hidden="true">
+      <header class="app-header">
+        <div class="app-header__brand">
+          <h1 class="app-nav-brand">
+            <a class="app-nav-brand__link" href="/" aria-label="Unify home">
+              <span class="app-nav-brand__mark" aria-hidden="true">U</span><span class="app-nav-brand__word">nify</span>
+            </a>
+          </h1>
+        </div>
+        <nav class="app-nav-pill" aria-label="Main sections">
+          <div class="tab-list" role="tablist">
+            <button
+              type="button"
+              class="tab-btn tab-btn--unified tab-btn--now-playing is-selected is-idle"
+              role="tab"
+              id="tab-now-playing"
+              aria-selected="true"
+              aria-controls="panel-now-playing"
+              tabindex="0"
+              data-testid="tab-now-playing"
+              aria-label="Now playing"
+            >
+              <span class="tab-now-playing-icon" aria-hidden="true">
+                <span class="eq-bar eq-bar--1"></span>
+                <span class="eq-bar eq-bar--2"></span>
+                <span class="eq-bar eq-bar--3"></span>
+              </span>
+              <span class="tab-now-playing-ticker" data-testid="tab-now-playing-ticker" hidden>
+                <span class="tab-now-playing-ticker__viewport" aria-hidden="true">
+                  <span class="tab-now-playing-ticker__track">
+                    <span class="tab-now-playing-ticker__text"></span>
+                    <span
+                      class="tab-now-playing-ticker__text tab-now-playing-ticker__text--dup"
+                      aria-hidden="true"
+                    ></span>
+                  </span>
+                </span>
+              </span>
+            </button>
+            <button
+              type="button"
+              class="tab-btn tab-btn--brand tab-btn--brand-spotify"
+              role="tab"
+              id="tab-spotify-search"
+              aria-selected="false"
+              aria-controls="panel-spotify-search"
+              tabindex="-1"
+              data-testid="tab-spotify-search"
+            >
+              <img
+                src="/spotify-queue-badge.png"
+                alt=""
+                class="tab-brand-icon"
+                width="18"
+                height="18"
+                decoding="async"
+              />
+              Spotify search
+            </button>
+            <button
+              type="button"
+              class="tab-btn tab-btn--brand tab-btn--brand-soundcloud"
+              role="tab"
+              id="tab-soundcloud-search"
+              aria-selected="false"
+              aria-controls="panel-soundcloud-search"
+              tabindex="-1"
+              data-testid="tab-soundcloud-search"
+            >
+              <img
+                src="/soundcloud-queue-badge.png"
+                alt=""
+                class="tab-brand-icon"
+                width="18"
+                height="18"
+                decoding="async"
+              />
+              SoundCloud search
+            </button>
+          </div>
+        </nav>
+        <div
+          class="app-header__volume volume-control"
+          data-testid="app-volume"
+          aria-label="Volume"
+        >
+          <button
+            type="button"
+            class="volume-control__mute"
+            id="volumeMuteBtn"
+            data-testid="volume-mute"
+            aria-label="Mute"
+            aria-pressed="false"
+          >
+            <span class="volume-control__icon-stack" aria-hidden="true">
+              <svg
+                class="volume-control__icon volume-control__icon--speaker"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                aria-hidden="true"
+              >
+                <path
+                  class="volume-control__icon-body"
+                  fill="currentColor"
+                  d="M3 10v4h4l5 5V5L7 10H3z"
+                />
+                <path
+                  class="volume-control__icon-wave"
+                  fill="currentColor"
+                  d="M14.5 12c0-1.77-1.02-3.29-2.5-4.03v8.06c1.48-.74 2.5-2.26 2.5-4.03z"
+                />
+              </svg>
+              <svg
+                class="volume-control__icon volume-control__icon--mute-x"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 10 10"
+                width="10"
+                height="10"
+                aria-hidden="true"
+                hidden
+              >
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                  d="M2 2l6 6M8 2L2 8"
+                />
+              </svg>
+            </span>
+          </button>
+          <div class="volume-control__slider-wrap" data-testid="volume-slider-wrap">
+            <input
+              type="range"
+              class="volume-control__slider"
+              id="volumeSlider"
+              min="0"
+              max="100"
+              value="80"
+              step="1"
+              aria-label="Volume"
+              data-testid="volume-slider"
+            />
+          </div>
+          <div
+            class="volume-control__popover"
+            id="volumePopover"
+            role="dialog"
+            aria-label="Volume"
+            hidden
+          >
+            <input
+              type="range"
+              class="volume-control__slider volume-control__slider--popover"
+              id="volumeSliderPopover"
+              min="0"
+              max="100"
+              value="80"
+              step="1"
+              aria-label="Volume"
+              data-testid="volume-slider-popover"
+            />
+          </div>
+        </div>
+      </header>
 
-      <section class="card">
-        <h2>Search Tracks</h2>
-        <form id="searchForm">
-          <label>
-            Provider
-            <select id="searchProvider">
-              <option value="spotify">Spotify</option>
-              <option value="soundcloud">SoundCloud</option>
-            </select>
-          </label>
-          <label>
-            Search
-            <input id="searchQuery" type="text" placeholder="title or artist" />
-          </label>
-          <button type="submit">Search</button>
-        </form>
-        <ul id="searchResults"></ul>
-      </section>
+      <div class="listening-desk" data-testid="listening-desk">
+        <aside class="queue-rail card card--rail" aria-label="Up next">
+          <h2 class="queue-rail__title">Up next</h2>
+          <ul id="queueList" class="queue-rail__list"></ul>
+        </aside>
 
-      <section class="card">
-        <h2>Queue</h2>
-        <p id="queueStatusText">Status: idle</p>
-        <p id="nextUpText" class="next-up" aria-live="polite"></p>
-        <ul id="queueList"></ul>
-      </section>
+        <div class="listening-desk__main">
+          <div id="authNotice" class="auth-notice-host" role="status" aria-live="polite" hidden></div>
 
-      <section class="card">
-        <h2>Now Playing</h2>
-        <p id="nowPlayingText">Nothing playing.</p>
-        <div id="playerHost"></div>
-      </section>
+          <section class="card tabbed-card" aria-label="Player and search">
+            <div
+              class="tab-panel"
+              id="panel-now-playing"
+              role="tabpanel"
+              aria-labelledby="tab-now-playing"
+              data-testid="panel-now-playing"
+            >
+              <div class="tab-panel-section">
+                <div id="nowPlayingRow" class="now-playing-row">
+                  <div class="now-playing-top">
+                    <p id="nowPlayingText" class="now-playing-heading">Nothing playing.</p>
+                    <div id="nowPlayingActions" class="now-playing-actions" hidden></div>
+                  </div>
+                  <div id="playerHost"></div>
+                </div>
+                <section class="recent-played" aria-label="Recently played">
+                  <h3 class="recent-played__title">Recently played</h3>
+                  <ul id="recentPlayedList" class="recent-played__list"></ul>
+                </section>
+              </div>
+            </div>
+
+            <div
+              class="tab-panel"
+              id="panel-spotify-search"
+              role="tabpanel"
+              aria-labelledby="tab-spotify-search"
+              hidden
+              data-testid="panel-spotify-search"
+            >
+              <div class="search-panel-header search-panel-header--spotify">
+            <h2 class="search-heading search-heading--spotify">
+              <img
+                src="/spotify-queue-badge.png"
+                alt=""
+                class="search-heading-icon"
+                width="22"
+                height="22"
+                decoding="async"
+                aria-hidden="true"
+              />
+              Search Spotify
+            </h2>
+            <div
+              id="spotifyProviderControls"
+              class="search-panel-provider"
+              role="group"
+              aria-label="Spotify account"
+            ></div>
+          </div>
+          <form id="spotifySearchForm" class="search-form">
+            <div class="search-field">
+              <svg
+                class="search-field__icon"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
+                <path
+                  d="M15.5 15.5L20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+              </svg>
+              <label class="visually-hidden" for="spotifySearchQuery">Search Spotify</label>
+              <input
+                id="spotifySearchQuery"
+                type="search"
+                autocomplete="off"
+                aria-label="Search Spotify"
+              />
+            </div>
+            <button type="submit" data-testid="spotify-search-submit">Search</button>
+          </form>
+          <ul id="spotifySearchResults" class="track-list"></ul>
+
+          <div class="spotify-library-split library-split" aria-label="Spotify library">
+            <div class="playlist-pane">
+              <h3 class="playlist-pane-title">Your library</h3>
+              <div class="spotify-library-scroll">
+                <div
+                  id="spotifyPlaylistLoading"
+                  class="playlist-loading"
+                  hidden
+                  aria-hidden="true"
+                  data-testid="spotify-playlist-loading"
+                >
+                  <div class="dot-spinner" role="status">
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span class="visually-hidden">Loading playlists</span>
+                  </div>
+                </div>
+                <p
+                  id="spotifyPlaylistStatus"
+                  class="hint-text playlist-status"
+                  hidden
+                  aria-live="polite"
+                  data-testid="spotify-playlist-status"
+                ></p>
+                <div class="spotify-library-groups" id="spotifyLibraryGroups">
+                  <h4 class="library-group-title">Liked Songs</h4>
+                  <ul id="spotifyLikedSongsList" class="playlist-list" data-testid="spotify-liked-songs-list"></ul>
+                  <h4 class="library-group-title">Your playlists</h4>
+                  <ul
+                    id="spotifyPlaylistList"
+                    class="playlist-list"
+                    data-testid="spotify-playlist-list"
+                  ></ul>
+                  <button type="button" id="spotifyPlaylistsMore" class="load-more-btn" hidden data-testid="spotify-playlists-more">
+                    More playlists
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="playlist-tracks-pane" id="spotifyPlaylistTracksPanel" hidden data-testid="spotify-playlist-tracks-panel">
+              <div class="playlist-tracks-header">
+                <h3 id="spotifySelectedPlaylistTitle" class="playlist-pane-title">Tracks</h3>
+                <div class="search-field playlist-tracks-search">
+                  <svg
+                    class="search-field__icon"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
+                    <path
+                      d="M15.5 15.5L20 20"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                  <label class="visually-hidden" for="spotifyPlaylistTrackFilter">Search in playlist</label>
+                  <input
+                    id="spotifyPlaylistTrackFilter"
+                    type="search"
+                    autocomplete="off"
+                    placeholder="Search"
+                    aria-label="Search playlist tracks"
+                    data-testid="spotify-playlist-track-filter"
+                  />
+                </div>
+              </div>
+              <div
+                id="spotifyPlaylistTracksLoading"
+                class="playlist-loading playlist-tracks-loading"
+                hidden
+                aria-hidden="true"
+                data-testid="spotify-playlist-tracks-loading"
+              >
+                <div class="dot-spinner" role="status">
+                  <span aria-hidden="true"></span>
+                  <span aria-hidden="true"></span>
+                  <span aria-hidden="true"></span>
+                  <span aria-hidden="true"></span>
+                  <span aria-hidden="true"></span>
+                  <span aria-hidden="true"></span>
+                  <span aria-hidden="true"></span>
+                  <span aria-hidden="true"></span>
+                  <span class="visually-hidden">Loading tracks</span>
+                </div>
+              </div>
+              <p id="spotifyPlaylistTracksStatus" class="hint-text" data-testid="spotify-playlist-tracks-status" aria-live="polite"></p>
+              <ul id="spotifyPlaylistTracks" class="playlist-track-list track-list"></ul>
+              <button type="button" id="spotifyTracksMore" class="load-more-btn" hidden data-testid="spotify-tracks-more">
+                More tracks
+              </button>
+            </div>
+          </div>
+            </div>
+
+            <div
+              class="tab-panel"
+              id="panel-soundcloud-search"
+              role="tabpanel"
+              aria-labelledby="tab-soundcloud-search"
+              hidden
+              data-testid="panel-soundcloud-search"
+            >
+              <div class="search-panel-header search-panel-header--soundcloud">
+            <h2 class="search-heading search-heading--soundcloud">
+              <img
+                src="/soundcloud-queue-badge.png"
+                alt=""
+                class="search-heading-icon"
+                width="22"
+                height="22"
+                decoding="async"
+                aria-hidden="true"
+              />
+              Search SoundCloud
+            </h2>
+            <div
+              id="soundcloudProviderControls"
+              class="search-panel-provider"
+              role="group"
+              aria-label="SoundCloud account"
+            ></div>
+          </div>
+          <form id="soundcloudSearchForm" class="search-form">
+            <div class="search-field">
+              <svg
+                class="search-field__icon"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
+                <path
+                  d="M15.5 15.5L20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                />
+              </svg>
+              <label class="visually-hidden" for="soundcloudSearchQuery">Search SoundCloud</label>
+              <input
+                id="soundcloudSearchQuery"
+                type="search"
+                autocomplete="off"
+                aria-label="Search SoundCloud"
+              />
+            </div>
+            <button type="submit" data-testid="soundcloud-search-submit">Search</button>
+          </form>
+          <ul id="soundcloudSearchResults" class="track-list"></ul>
+
+          <div class="soundcloud-library-split library-split" aria-label="SoundCloud library">
+            <div class="playlist-pane">
+              <h3 class="playlist-pane-title">Your library</h3>
+              <div class="soundcloud-library-scroll">
+                <div
+                  id="soundcloudPlaylistLoading"
+                  class="playlist-loading"
+                  hidden
+                  aria-hidden="true"
+                  data-testid="soundcloud-playlist-loading"
+                >
+                  <div class="dot-spinner" role="status">
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span class="visually-hidden">Loading library</span>
+                  </div>
+                </div>
+                <div class="soundcloud-library-groups" id="soundcloudLibraryGroups">
+                  <h4 class="library-group-title">Likes</h4>
+                  <ul id="soundcloudLikesList" class="playlist-list" data-testid="soundcloud-likes-list"></ul>
+                  <h4 class="library-group-title">Your playlists</h4>
+                  <ul id="soundcloudOwnedPlaylistList" class="playlist-list" data-testid="soundcloud-owned-playlist-list"></ul>
+                  <button type="button" id="soundcloudOwnedPlaylistsMore" class="load-more-btn" hidden data-testid="soundcloud-owned-playlists-more">
+                    More playlists
+                  </button>
+                  <h4 class="library-group-title">Liked playlists</h4>
+                  <ul id="soundcloudLikedPlaylistList" class="playlist-list" data-testid="soundcloud-liked-playlist-list"></ul>
+                  <button type="button" id="soundcloudLikedPlaylistsMore" class="load-more-btn" hidden data-testid="soundcloud-liked-playlists-more">
+                    More liked playlists
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="playlist-tracks-pane" id="soundcloudPlaylistTracksPanel" hidden data-testid="soundcloud-playlist-tracks-panel">
+              <div class="playlist-tracks-header">
+                <h3 id="soundcloudSelectedPlaylistTitle" class="playlist-pane-title">Tracks</h3>
+                <div class="search-field playlist-tracks-search">
+                  <svg
+                    class="search-field__icon"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
+                    <path
+                      d="M15.5 15.5L20 20"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                  <label class="visually-hidden" for="soundcloudPlaylistTrackFilter">Search in playlist</label>
+                  <input
+                    id="soundcloudPlaylistTrackFilter"
+                    type="search"
+                    autocomplete="off"
+                    placeholder="Search"
+                    aria-label="Search playlist tracks"
+                    data-testid="soundcloud-playlist-track-filter"
+                  />
+                </div>
+              </div>
+              <div
+                id="soundcloudPlaylistTracksLoading"
+                class="playlist-loading playlist-tracks-loading"
+                hidden
+                aria-hidden="true"
+                data-testid="soundcloud-playlist-tracks-loading"
+              >
+                <div class="dot-spinner" role="status">
+                  <span aria-hidden="true"></span>
+                  <span aria-hidden="true"></span>
+                  <span aria-hidden="true"></span>
+                  <span aria-hidden="true"></span>
+                  <span aria-hidden="true"></span>
+                  <span aria-hidden="true"></span>
+                  <span aria-hidden="true"></span>
+                  <span aria-hidden="true"></span>
+                  <span class="visually-hidden">Loading tracks</span>
+                </div>
+              </div>
+              <p id="soundcloudPlaylistTracksStatus" class="hint-text" data-testid="soundcloud-playlist-tracks-status" aria-live="polite"></p>
+              <ul id="soundcloudPlaylistTracks" class="playlist-track-list track-list"></ul>
+              <button type="button" id="soundcloudTracksMore" class="load-more-btn" hidden data-testid="soundcloud-tracks-more">
+                More tracks
+              </button>
+            </div>
+          </div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="status-rail card card--rail" aria-label="Connections" data-testid="status-rail">
+          <h2 class="status-rail__title">Connections</h2>
+          <div id="statusRailProviders" class="status-rail__providers"></div>
+        </aside>
+      </div>
     </main>
 
+    <div id="loaderCamera" class="loader-camera">
+    <div id="appLoader" class="loader" role="presentation" aria-hidden="true" data-testid="app-loader">
+      <div class="loader__logo-wrapper">
+        <div class="loader__zoom-target">
+        <svg
+          id="logo"
+          class="loader__logo"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="-4 -4 108 108"
+          overflow="visible"
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient id="loaderConvergence" x1="0%" y1="50%" x2="100%" y2="50%">
+              <stop offset="0%" stop-color="#1ED760" />
+              <stop offset="50%" stop-color="#7A9488" />
+              <stop offset="100%" stop-color="#FF5500" />
+            </linearGradient>
+            <linearGradient
+              id="loaderConvergenceU"
+              gradientUnits="userSpaceOnUse"
+              x1="28"
+              y1="58"
+              x2="72"
+              y2="58"
+              gradientTransform="translate(32 0)"
+            >
+              <stop offset="0%" stop-color="#0f5b34" />
+              <stop offset="24%" stop-color="#4df3a0" />
+              <stop offset="50%" stop-color="#f6efe3" />
+              <stop offset="76%" stop-color="#ff9c62" />
+              <stop offset="100%" stop-color="#b44714" />
+            </linearGradient>
+          </defs>
+          <title>Loading</title>
+          <text
+            class="loader-u-fill"
+            x="50"
+            y="58"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            font-family="Cabinet Grotesk, var(--font-display), sans-serif"
+            font-size="44"
+            font-weight="700"
+            fill="url(#loaderConvergenceU)"
+            aria-hidden="true"
+          >
+            U
+          </text>
+          <text
+            class="loader-u-stroke"
+            x="50"
+            y="58"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            font-family="Cabinet Grotesk, var(--font-display), sans-serif"
+            font-size="44"
+            font-weight="700"
+            fill="none"
+            stroke="url(#loaderConvergenceU)"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            paint-order="stroke fill"
+            aria-hidden="true"
+          >
+            U
+          </text>
+          <path
+            class="loader-hex"
+            fill="none"
+            stroke="url(#loaderConvergence)"
+            stroke-width="5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M 50, 5 L 11, 27 L 11, 72 L 50, 95 L 89, 73 L 89, 28 z"
+          />
+        </svg>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+    <script src="/background-video.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"></script>
+    <script src="/loader.js"></script>
+    <script src="/spotifyAdvanceLogic.js"></script>
+    <script src="/spotifyReloadSnapshot.js"></script>
+    <script src="/volumeControl.js"></script>
+    <script src="/filterPlaylistTracks.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

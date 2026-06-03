@@ -192,7 +192,7 @@ const renderNowPlayingHero = (item) => {
       cover.hidden = true;
     }
     if (fallback) fallback.hidden = false;
-    applyTheaterBackgroundFromCover(null);
+    applyTheaterBackgroundFromCover(null, null);
     return;
   }
 
@@ -202,66 +202,102 @@ const renderNowPlayingHero = (item) => {
   if (fallback) fallback.hidden = Boolean(coverUrl);
 
   if (!cover) {
-    applyTheaterBackgroundFromCover(null);
+    applyTheaterBackgroundFromCover(null, item);
     return;
   }
   if (!coverUrl) {
     cover.hidden = true;
     cover.removeAttribute("src");
-    applyTheaterBackgroundFromCover(null);
+    applyTheaterBackgroundFromCover(null, item);
     return;
   }
 
   cover.hidden = false;
+  cover.crossOrigin = "anonymous";
+  cover.referrerPolicy = "no-referrer";
+  cover.onerror = () => {
+    applyTheaterBackgroundFromCover(null, item);
+  };
   if (cover.getAttribute("src") !== coverUrl) {
     cover.setAttribute("src", coverUrl);
   }
-  applyTheaterBackgroundFromCover(cover);
+  applyTheaterBackgroundFromCover(cover, item);
 };
 
-const sampleCoverAccentColor = (imgEl) => {
+const THEATER_BG_DARKEN = 0.4;
+
+const darkenCoverRgb = (r, g, b) =>
+  `rgb(${Math.round(r * THEATER_BG_DARKEN)}, ${Math.round(g * THEATER_BG_DARKEN)}, ${Math.round(b * THEATER_BG_DARKEN)})`;
+
+const averageCoverRegion = (data, width, height, yStart, yEnd) => {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let count = 0;
+  const y0 = Math.max(0, yStart);
+  const y1 = Math.min(height, yEnd);
+  for (let y = y0; y < y1; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const i = (y * width + x) * 4;
+      r += data[i];
+      g += data[i + 1];
+      b += data[i + 2];
+      count += 1;
+    }
+  }
+  if (!count) return null;
+  return { r: r / count, g: g / count, b: b / count };
+};
+
+const sampleCoverTheaterGradient = (imgEl) => {
   if (!imgEl?.complete || !imgEl.naturalWidth) return null;
   try {
     const canvas = document.createElement("canvas");
-    const size = 32;
+    const size = 48;
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
     ctx.drawImage(imgEl, 0, 0, size, size);
     const data = ctx.getImageData(0, 0, size, size).data;
-    let r = 0;
-    let g = 0;
-    let b = 0;
-    let count = 0;
-    for (let i = 0; i < data.length; i += 4) {
-      r += data[i];
-      g += data[i + 1];
-      b += data[i + 2];
-      count += 1;
-    }
-    if (!count) return null;
-    r = Math.round((r / count) * 0.38);
-    g = Math.round((g / count) * 0.38);
-    b = Math.round((b / count) * 0.38);
-    return `rgb(${r}, ${g}, ${b})`;
+    const topEnd = Math.ceil(size * 0.35);
+    const bottomStart = Math.floor(size * 0.65);
+    const top = averageCoverRegion(data, size, size, 0, topEnd);
+    const bottom = averageCoverRegion(data, size, size, bottomStart, size);
+    const mid = averageCoverRegion(data, size, size, 0, size);
+    if (!top || !bottom || !mid) return null;
+    const topColor = darkenCoverRgb(top.r, top.g, top.b);
+    const midColor = darkenCoverRgb(mid.r, mid.g, mid.b);
+    const bottomColor = darkenCoverRgb(bottom.r, bottom.g, bottom.b);
+    return `linear-gradient(180deg, ${topColor} 0%, ${midColor} 50%, ${bottomColor} 100%)`;
   } catch (_) {
     return null;
   }
 };
 
-const applyTheaterBackgroundFromCover = (coverEl) => {
+const getTheaterBackgroundFallback = (item) => {
+  if (!item) return null;
+  if (item.provider === "spotify") {
+    return "var(--gradient-spotify-glow), linear-gradient(175deg, rgba(26, 36, 32, 0.95) 0%, #0b0b0c 100%)";
+  }
+  if (item.provider === "soundcloud") {
+    return "var(--gradient-soundcloud-glow), linear-gradient(175deg, rgba(36, 24, 18, 0.95) 0%, #0b0b0c 100%)";
+  }
+  return "var(--gradient-unified-glow), linear-gradient(175deg, #141416 0%, #0b0b0c 100%)";
+};
+
+const applyTheaterBackgroundFromCover = (coverEl, item) => {
   if (!nowPlayingRow) return;
-  const applyColor = (color) => {
-    if (color) nowPlayingRow.style.setProperty("--theater-bg", color);
+  const applyBackground = (value) => {
+    if (value) nowPlayingRow.style.setProperty("--theater-bg", value);
     else nowPlayingRow.style.removeProperty("--theater-bg");
   };
   if (!coverEl || coverEl.hidden || !coverEl.getAttribute("src")) {
-    applyColor(null);
+    applyBackground(getTheaterBackgroundFallback(item));
     return;
   }
   const sample = () => {
-    applyColor(sampleCoverAccentColor(coverEl));
+    applyBackground(sampleCoverTheaterGradient(coverEl) || getTheaterBackgroundFallback(item));
   };
   if (coverEl.complete && coverEl.naturalWidth) sample();
   else coverEl.addEventListener("load", sample, { once: true });

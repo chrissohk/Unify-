@@ -115,8 +115,14 @@ test.describe("unified queue", () => {
 
     await page.getByTestId("now-playing-theater-toggle").click();
     await expect(page.locator("body")).toHaveClass(/now-playing-theater-open/);
+    const theaterBg = await page.locator("#nowPlayingRow").evaluate((el) =>
+      el.style.getPropertyValue("--theater-bg")
+    );
+    expect(theaterBg.length).toBeGreaterThan(0);
+    expect(theaterBg).toMatch(/gradient|rgb/i);
     await expect(page.locator(".vinyl-hero")).toBeVisible();
     await expect(page.locator(".now-playing-layout__meta strong")).toContainText("Neon Skyline");
+    await expect(page.getByTestId("spotify-seek")).toBeVisible();
     await expect(page.getByTestId("now-playing-theater-next")).toBeVisible();
     await expect(page.getByTestId("now-playing-theater-next-title")).toContainText("Ocean Tape");
 

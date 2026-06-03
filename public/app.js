@@ -63,10 +63,38 @@ const tabNowPlayingTickerViewport = tabNowPlaying?.querySelector?.(
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 
-const formatNowPlayingTicker = (item) => {
-  const title = String(item?.title || "").trim() || "Unknown title";
-  const artist = String(item?.artist || "").trim() || "Unknown artist";
-  return `${title} - ${artist}`;
+const formatNowPlayingLabel = (title, artist) => {
+  const t = String(title || "").trim() || "Unknown title";
+  const a = String(artist || "").trim() || "Unknown artist";
+  return `${t} - ${a}`;
+};
+
+const formatNowPlayingTicker = (item) => formatNowPlayingLabel(item?.title, item?.artist);
+
+const applyNowPlayingTicker = ({
+  durationHost,
+  durationVar,
+  tickerEl,
+  staticClass,
+  textEl,
+  textDupEl,
+  viewportEl,
+  label
+}) => {
+  if (!tickerEl || !textEl || !textDupEl) return;
+  const trimmed = String(label || "").trim();
+  textEl.textContent = trimmed;
+  textDupEl.textContent = trimmed;
+  if (durationHost && trimmed) {
+    const seconds = clamp(Math.round(trimmed.length * 0.35), 8, 28);
+    durationHost.style.setProperty(durationVar, `${seconds}s`);
+  }
+  tickerEl.classList.remove(staticClass);
+  if (!viewportEl) return;
+  requestAnimationFrame(() => {
+    const overflows = textEl.scrollWidth > viewportEl.clientWidth;
+    tickerEl.classList.toggle(staticClass, !overflows);
+  });
 };
 
 /** Tab shows eq bars only when idle; track title scrolls only while something is playing. */
@@ -92,19 +120,102 @@ const renderNowPlayingTabTicker = (item) => {
   tabNowPlaying.setAttribute("aria-label", `Now playing: ${label}`);
   tabNowPlayingTicker.hidden = false;
   tabNowPlayingTicker.setAttribute("title", label);
-  tabNowPlayingTickerText.textContent = label;
-  tabNowPlayingTickerTextDup.textContent = label;
-
-  const seconds = clamp(Math.round(label.length * 0.35), 8, 28);
-  tabNowPlaying.style.setProperty("--tab-ticker-duration", `${seconds}s`);
-
-  tabNowPlayingTicker.classList.remove("tab-now-playing-ticker--static");
-  if (!tabNowPlayingTickerViewport) return;
-
-  requestAnimationFrame(() => {
-    const overflows = tabNowPlayingTickerText.scrollWidth > tabNowPlayingTickerViewport.clientWidth;
-    tabNowPlayingTicker.classList.toggle("tab-now-playing-ticker--static", !overflows);
+  applyNowPlayingTicker({
+    durationHost: tabNowPlaying,
+    durationVar: "--tab-ticker-duration",
+    tickerEl: tabNowPlayingTicker,
+    staticClass: "tab-now-playing-ticker--static",
+    textEl: tabNowPlayingTickerText,
+    textDupEl: tabNowPlayingTickerTextDup,
+    viewportEl: tabNowPlayingTickerViewport,
+    label
   });
+};
+
+const getNowPlayingPanel = () =>
+  playerHost?.querySelector?.(".spotify-sdk-panel") ??
+  playerHost?.querySelector?.(".soundcloud-sdk-panel") ??
+  null;
+
+const ensureMetaTickerMarkup = (ticker) => {
+  if (!ticker || ticker.querySelector(".now-playing-meta-ticker__track")) return;
+  ticker.innerHTML = `
+    <span class="now-playing-meta-ticker__viewport">
+      <span class="now-playing-meta-ticker__track">
+        <span class="now-playing-meta-ticker__text"></span>
+        <span class="now-playing-meta-ticker__text now-playing-meta-ticker__text--dup" aria-hidden="true"></span>
+      </span>
+    </span>`;
+};
+
+const refreshNowPlayingMetaTicker = (panel, { title, artist } = {}) => {
+  const meta = panel?.querySelector?.(".now-playing-layout__meta");
+  if (!meta) return;
+
+  const ticker = meta.querySelector(".now-playing-meta-ticker");
+  ensureMetaTickerMarkup(ticker);
+  const textSpans = meta.querySelectorAll(".now-playing-meta-ticker__text");
+  const textEl = textSpans[0] ?? null;
+  const textDupEl = textSpans[1] ?? null;
+  const viewportEl = meta.querySelector(".now-playing-meta-ticker__viewport");
+  const titleFromDom = meta.querySelector("strong")?.textContent;
+  const artistFromDom = meta.querySelector("span")?.textContent;
+
+  if (!isNowPlayingTheaterOpen()) {
+    if (ticker) {
+      ticker.removeAttribute("title");
+      ticker.classList.remove("now-playing-meta-ticker--static");
+    }
+    if (textEl) textEl.textContent = "";
+    if (textDupEl) textDupEl.textContent = "";
+    meta.removeAttribute("aria-label");
+    meta.style.removeProperty("--meta-ticker-duration");
+    return;
+  }
+
+  if (!ticker || !textEl || !textDupEl) return;
+
+  const label = formatNowPlayingLabel(
+    title ?? titleFromDom,
+    artist ?? artistFromDom
+  );
+  meta.setAttribute("aria-label", label);
+  ticker.setAttribute("title", label);
+  applyNowPlayingTicker({
+    durationHost: meta,
+    durationVar: "--meta-ticker-duration",
+    tickerEl: ticker,
+    staticClass: "now-playing-meta-ticker--static",
+    textEl,
+    textDupEl,
+    viewportEl,
+    label
+  });
+};
+
+const renderNowPlayingMetaTicker = (panel, opts = {}) => {
+  refreshNowPlayingMetaTicker(panel, opts);
+};
+
+const scheduleNowPlayingMetaTickerRefresh = () => {
+  if (!isNowPlayingTheaterOpen()) return;
+  const idx = queueState.currentIndex;
+  if (idx < 0 || idx >= queueState.queue.length) return;
+  const item = queueState.queue[idx];
+  const run = () => {
+    const panel = getNowPlayingPanel();
+    if (!panel || !item) return;
+    const title =
+      item.provider === "spotify"
+        ? spotifyPlaybackState?.trackName || item.title
+        : item.title;
+    const artist =
+      item.provider === "spotify"
+        ? spotifyPlaybackState?.artist || item.artist
+        : item.artist;
+    refreshNowPlayingMetaTicker(panel, { title, artist });
+  };
+  requestAnimationFrame(() => requestAnimationFrame(run));
 };
 
 const resolveNowPlayingCoverUrl = (item) => {
@@ -327,6 +438,7 @@ const syncNowPlayingTheaterToggle = () => {
   nowPlayingTheaterBtn.innerHTML = open
     ? nowPlayingTheaterSvgExit()
     : nowPlayingTheaterSvgEnter();
+  if (open) scheduleNowPlayingMetaTickerRefresh();
 };
 
 const renderNowPlayingTheaterNext = () => {
@@ -375,6 +487,7 @@ const openNowPlayingTheater = async () => {
   document.body.classList.add("now-playing-theater-open");
   syncNowPlayingTheaterToggle();
   renderNowPlayingTheaterNext();
+  scheduleNowPlayingMetaTickerRefresh();
   try {
     if (nowPlayingRow?.requestFullscreen && document.fullscreenElement !== nowPlayingRow) {
       await nowPlayingRow.requestFullscreen();
@@ -384,11 +497,13 @@ const openNowPlayingTheater = async () => {
 
 const closeNowPlayingTheater = async () => {
   if (!isNowPlayingTheaterOpen()) return;
+  const panel = getNowPlayingPanel();
   document.body.classList.remove("now-playing-theater-open");
   if (nowPlayingTheaterNext) {
     nowPlayingTheaterNext.hidden = true;
     nowPlayingTheaterNext.replaceChildren();
   }
+  if (panel) renderNowPlayingMetaTicker(panel);
   syncNowPlayingTheaterToggle();
   if (document.fullscreenElement === nowPlayingRow) {
     try {
@@ -405,11 +520,13 @@ const toggleNowPlayingTheater = () => {
 const handleNowPlayingTheaterFullscreenChange = () => {
   const inFs = document.fullscreenElement === nowPlayingRow;
   if (!inFs && isNowPlayingTheaterOpen()) {
+    const panel = getNowPlayingPanel();
     document.body.classList.remove("now-playing-theater-open");
     if (nowPlayingTheaterNext) {
       nowPlayingTheaterNext.hidden = true;
       nowPlayingTheaterNext.replaceChildren();
     }
+    if (panel) renderNowPlayingMetaTicker(panel);
     syncNowPlayingTheaterToggle();
     return;
   }
@@ -469,6 +586,7 @@ const patchSpotifyNowPlayingPanel = (item) => {
 
   if (titleEl) titleEl.textContent = title;
   if (artistEl) artistEl.textContent = artist;
+  renderNowPlayingMetaTicker(panel, { title, artist });
   if (elapsedEl) elapsedEl.textContent = formatClock(progressNow);
   if (totalEl) totalEl.textContent = formatClock(progressTotal);
   if (fillEl) fillEl.style.width = `${progressPercent}%`;
@@ -665,6 +783,8 @@ let activeSoundcloudResults = [];
 /** Spotify playlist browser (GET /api/spotify/playlists + tracks). */
 let spotifyPlaylistBrowser = {
   likedSongs: null,
+  likedSongsUnavailable: false,
+  likedSongsHint: "",
   items: [],
   nextOffset: null,
   demoMode: false,
@@ -2563,6 +2683,17 @@ const buildNowPlayingLayout = ({
       </div>
       <div class="now-playing-layout__right">
         <div class="now-playing-layout__meta">
+          <div class="now-playing-meta-ticker" data-testid="now-playing-meta-ticker">
+            <span class="now-playing-meta-ticker__viewport">
+              <span class="now-playing-meta-ticker__track">
+                <span class="now-playing-meta-ticker__text"></span>
+                <span
+                  class="now-playing-meta-ticker__text now-playing-meta-ticker__text--dup"
+                  aria-hidden="true"
+                ></span>
+              </span>
+            </span>
+          </div>
           <strong>${escapeHtmlText(title)}</strong>
           <span>${escapeHtmlText(artist)}</span>
         </div>
@@ -3169,6 +3300,10 @@ const renderNowPlaying = () => {
     nowPlayingText.appendChild(document.createTextNode("Playing "));
     appendProviderBadge(nowPlayingText, item.provider);
     renderNowPlayingHero(item);
+    renderNowPlayingMetaTicker(getNowPlayingPanel(), {
+      title: spotifyPlaybackState?.trackName || item.title,
+      artist: spotifyPlaybackState?.artist || item.artist
+    });
     return;
   }
   if (item.provider === "soundcloud") {
@@ -3185,6 +3320,10 @@ const renderNowPlaying = () => {
       appendProviderBadge(nowPlayingText, item.provider);
       patchSoundCloudTransportState(item);
       lastNowPlayingEmbedKey = embedKey;
+      renderNowPlayingMetaTicker(getNowPlayingPanel(), {
+        title: item.title,
+        artist: item.artist
+      });
       return;
     }
   }
@@ -3212,6 +3351,18 @@ const renderNowPlaying = () => {
   }
   syncNowPlayingTheaterToggle();
   renderNowPlayingTheaterNext();
+  const panel = getNowPlayingPanel();
+  if (panel) {
+    const metaTitle =
+      item.provider === "spotify"
+        ? spotifyPlaybackState?.trackName || item.title
+        : item.title;
+    const metaArtist =
+      item.provider === "spotify"
+        ? spotifyPlaybackState?.artist || item.artist
+        : item.artist;
+    renderNowPlayingMetaTicker(panel, { title: metaTitle, artist: metaArtist });
+  }
 };
 
 const bindProviderConnectButton = (button, providerState) => {
@@ -3431,6 +3582,17 @@ const renderSpotifyLibraryRows = () => {
         "spotify-liked-songs-row",
         (pl) => void selectSpotifyPlaylist(pl.id, pl.name)
       );
+      const likedBtn = spotifyLikedSongsList.querySelector('[data-testid="spotify-liked-songs-row"]');
+      if (likedBtn) {
+        const hint = spotifyPlaylistBrowser.likedSongsHint || "";
+        if (spotifyPlaylistBrowser.likedSongsUnavailable && hint) {
+          likedBtn.title = hint;
+          likedBtn.setAttribute("aria-description", hint);
+        } else {
+          likedBtn.removeAttribute("title");
+          likedBtn.removeAttribute("aria-description");
+        }
+      }
     }
   }
   if (!spotifyPlaylistList) return;
@@ -3699,6 +3861,8 @@ const bootstrapSpotifyPlaylistBrowser = async () => {
     const data = await fetchSpotifyPlaylistsPage(0);
     setSpotifyPlaylistStatus("");
     spotifyPlaylistBrowser.likedSongs = data.likedSongs || null;
+    spotifyPlaylistBrowser.likedSongsUnavailable = Boolean(data.likedSongsUnavailable);
+    spotifyPlaylistBrowser.likedSongsHint = data.likedSongsError?.hint || "";
     spotifyPlaylistBrowser.items = data.items || [];
     spotifyPlaylistBrowser.nextOffset =
       data.nextOffset === null || data.nextOffset === undefined ? null : data.nextOffset;
@@ -3908,7 +4072,12 @@ const appendSoundCloudPlaylistRow = (listEl, pl, testId, onSelect) => {
   btn.className = "playlist-row-btn";
   const owner = pl.ownerDisplayName ? ` · ${pl.ownerDisplayName}` : "";
   const count = pl.trackCount;
-  const countStr = pl.trackCountHasMore ? `${count}+` : String(count);
+  const countStr =
+    count == null || count === undefined
+      ? "?"
+      : pl.trackCountHasMore
+        ? `${count}+`
+        : String(count);
   const countLabel =
     pl.kind === "likes" || pl.kind === "liked_songs"
       ? `${countStr} liked track${count === 1 && !pl.trackCountHasMore ? "" : "s"}`

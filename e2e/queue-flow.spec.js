@@ -128,6 +128,7 @@ test.describe("unified queue", () => {
 
     await page.goto("/");
     await page.getByTestId("tab-now-playing").click();
+    await expect(page.getByTestId("spotify-seek")).toBeVisible();
 
     await page.getByTestId("now-playing-theater-toggle").click();
     await expect(page.locator("body")).toHaveClass(/now-playing-theater-open/);
@@ -137,7 +138,13 @@ test.describe("unified queue", () => {
     expect(theaterBg.length).toBeGreaterThan(0);
     expect(theaterBg).toMatch(/gradient|rgb/i);
     await expect(page.locator(".vinyl-hero")).toBeVisible();
-    await expect(page.locator(".now-playing-layout__meta strong")).toContainText("Neon Skyline");
+    const meta = page.locator(".now-playing-layout__meta");
+    await expect(meta).toHaveAttribute("aria-label", "Neon Skyline - Astra");
+    const metaTicker = page.getByTestId("now-playing-meta-ticker");
+    await expect(metaTicker).toBeVisible();
+    await expect(meta.locator(".now-playing-meta-ticker__text").first()).toHaveText(
+      "Neon Skyline - Astra"
+    );
     await expect(page.getByTestId("spotify-seek")).toBeVisible();
     await expect(page.getByTestId("now-playing-theater-next")).toBeVisible();
     await expect(page.getByTestId("now-playing-theater-next-title")).toContainText("Ocean Tape");

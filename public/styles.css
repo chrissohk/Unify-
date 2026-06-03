@@ -1002,6 +1002,76 @@ body:not(.is-loading) {
   }
 }
 
+/* ── Now playing panel meta ticker (theater) ── */
+.now-playing-meta-ticker {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  width: 100%;
+}
+
+.now-playing-meta-ticker__viewport {
+  width: 100%;
+  max-width: min(480px, 88vw);
+  overflow: hidden;
+  white-space: nowrap;
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    #000 10%,
+    #000 90%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    #000 10%,
+    #000 90%,
+    transparent 100%
+  );
+}
+
+.now-playing-meta-ticker__track {
+  display: inline-flex;
+  align-items: center;
+  will-change: transform;
+}
+
+.now-playing-meta-ticker__text {
+  display: inline-block;
+  padding-right: 18px;
+}
+
+.now-playing-meta-ticker.now-playing-meta-ticker--static .now-playing-meta-ticker__track {
+  animation: none;
+}
+
+.now-playing-meta-ticker.now-playing-meta-ticker--static .now-playing-meta-ticker__text--dup {
+  display: none;
+}
+
+body.now-playing-theater-open .now-playing-meta-ticker {
+  display: inline-flex;
+}
+
+body.now-playing-theater-open .now-playing-layout__meta > strong,
+body.now-playing-theater-open .now-playing-layout__meta > span {
+  display: none;
+}
+
+body.now-playing-theater-open .now-playing-meta-ticker__track {
+  animation: tabTickerScroll var(--meta-ticker-duration, 16s) linear infinite;
+}
+
+body.now-playing-theater-open .now-playing-meta-ticker__text {
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 4vw, 2rem);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-text);
+}
+
 /* ── Equalizer icon container ── */
 .tab-now-playing-icon,
 .now-playing-title__icon {
@@ -1071,6 +1141,20 @@ body:not(.is-loading) {
   }
 
   .tab-now-playing-ticker__text--dup {
+    display: none;
+  }
+
+  body.now-playing-theater-open .now-playing-meta-ticker__track {
+    animation: none;
+  }
+
+  body.now-playing-theater-open .now-playing-meta-ticker__viewport {
+    mask-image: none;
+    -webkit-mask-image: none;
+    text-overflow: ellipsis;
+  }
+
+  body.now-playing-theater-open .now-playing-meta-ticker__text--dup {
     display: none;
   }
 }
@@ -2520,10 +2604,8 @@ body.now-playing-theater-open .soundcloud-progress-track {
   background: rgba(255, 255, 255, 0.14);
 }
 
-body.now-playing-theater-open .now-playing-layout__meta strong {
-  font-family: var(--font-display);
-  font-size: clamp(1.35rem, 4vw, 2rem);
-  text-align: center;
+body.now-playing-theater-open .now-playing-layout__meta {
+  align-items: center;
 }
 
 body.now-playing-theater-open .now-playing-layout__meta span {

@@ -219,11 +219,36 @@
             >
               <div class="tab-panel-section">
                 <div id="nowPlayingRow" class="now-playing-row">
+                  <aside
+                    id="nowPlayingTheaterNext"
+                    class="now-playing-theater-next"
+                    data-testid="now-playing-theater-next"
+                    aria-label="Up next"
+                    hidden
+                  ></aside>
                   <div class="now-playing-top">
                     <p id="nowPlayingText" class="now-playing-heading">Nothing playing.</p>
                     <div id="nowPlayingActions" class="now-playing-actions" hidden></div>
                   </div>
                   <div id="playerHost"></div>
+                  <button
+                    type="button"
+                    id="nowPlayingTheaterBtn"
+                    class="now-playing-theater-toggle"
+                    data-testid="now-playing-theater-toggle"
+                    aria-label="Enter theater mode"
+                    disabled
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                      <path
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"
+                      />
+                    </svg>
+                  </button>
                 </div>
                 <section class="recent-played" aria-label="Recently played">
                   <h3 class="recent-played__title">Recently played</h3>
@@ -559,40 +584,6 @@
         <aside class="status-rail card card--rail" aria-label="Connections" data-testid="status-rail">
           <h2 class="status-rail__title">Connections</h2>
           <div id="statusRailProviders" class="status-rail__providers"></div>
-          <section
-            class="status-rail__audio-output"
-            data-testid="audio-output-section"
-            aria-labelledby="audio-output-heading"
-          >
-            <h3 id="audio-output-heading" class="status-rail__subtitle">Audio output</h3>
-            <p
-              id="audioOutputLabel"
-              class="status-rail__audio-output-value"
-              data-testid="audio-output-label"
-              aria-live="polite"
-            ></p>
-            <select
-              id="audioOutputSelect"
-              class="status-rail__audio-output-select"
-              hidden
-              data-testid="audio-output-select"
-              aria-label="Audio output device"
-            ></select>
-            <button
-              type="button"
-              id="audioOutputChooseBtn"
-              class="btn btn--ghost status-rail__audio-output-choose"
-              hidden
-              data-testid="audio-output-choose"
-            >
-              Choose output…
-            </button>
-            <p
-              id="audioOutputHint"
-              class="hint-text status-rail__audio-output-hint"
-              data-testid="audio-output-hint"
-            ></p>
-          </section>
         </aside>
       </div>
     </main>
@@ -694,7 +685,6 @@
     <script src="/spotifyReloadSnapshot.js"></script>
     <script src="/volumeControl.js"></script>
     <script src="/queueAutoPlay.js"></script>
-    <script src="/audioOutputControl.js"></script>
     <script src="/filterPlaylistTracks.js"></script>
     <script src="/app.js"></script>
   </body>

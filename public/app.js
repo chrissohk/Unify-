@@ -49,6 +49,8 @@ const nowPlayingActions = document.getElementById("nowPlayingActions");
 const nowPlayingRow = document.getElementById("nowPlayingRow");
 const playerHost = document.getElementById("playerHost");
 const recentPlayedList = document.getElementById("recentPlayedList");
+const nowPlayingTheaterBtn = document.getElementById("nowPlayingTheaterBtn");
+const nowPlayingTheaterNext = document.getElementById("nowPlayingTheaterNext");
 
 const tabNowPlayingTicker = tabNowPlaying?.querySelector?.(".tab-now-playing-ticker");
 const tabNowPlayingTickerText = tabNowPlaying?.querySelector?.(".tab-now-playing-ticker__text");
@@ -190,6 +192,7 @@ const renderNowPlayingHero = (item) => {
       cover.hidden = true;
     }
     if (fallback) fallback.hidden = false;
+    applyTheaterBackgroundFromCover(null);
     return;
   }
 
@@ -198,10 +201,14 @@ const renderNowPlayingHero = (item) => {
   const coverUrl = resolveNowPlayingHeroCoverUrl(item);
   if (fallback) fallback.hidden = Boolean(coverUrl);
 
-  if (!cover) return;
+  if (!cover) {
+    applyTheaterBackgroundFromCover(null);
+    return;
+  }
   if (!coverUrl) {
     cover.hidden = true;
     cover.removeAttribute("src");
+    applyTheaterBackgroundFromCover(null);
     return;
   }
 
@@ -209,6 +216,176 @@ const renderNowPlayingHero = (item) => {
   if (cover.getAttribute("src") !== coverUrl) {
     cover.setAttribute("src", coverUrl);
   }
+  applyTheaterBackgroundFromCover(cover);
+};
+
+const sampleCoverAccentColor = (imgEl) => {
+  if (!imgEl?.complete || !imgEl.naturalWidth) return null;
+  try {
+    const canvas = document.createElement("canvas");
+    const size = 32;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(imgEl, 0, 0, size, size);
+    const data = ctx.getImageData(0, 0, size, size).data;
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    let count = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      r += data[i];
+      g += data[i + 1];
+      b += data[i + 2];
+      count += 1;
+    }
+    if (!count) return null;
+    r = Math.round((r / count) * 0.38);
+    g = Math.round((g / count) * 0.38);
+    b = Math.round((b / count) * 0.38);
+    return `rgb(${r}, ${g}, ${b})`;
+  } catch (_) {
+    return null;
+  }
+};
+
+const applyTheaterBackgroundFromCover = (coverEl) => {
+  if (!nowPlayingRow) return;
+  const applyColor = (color) => {
+    if (color) nowPlayingRow.style.setProperty("--theater-bg", color);
+    else nowPlayingRow.style.removeProperty("--theater-bg");
+  };
+  if (!coverEl || coverEl.hidden || !coverEl.getAttribute("src")) {
+    applyColor(null);
+    return;
+  }
+  const sample = () => {
+    applyColor(sampleCoverAccentColor(coverEl));
+  };
+  if (coverEl.complete && coverEl.naturalWidth) sample();
+  else coverEl.addEventListener("load", sample, { once: true });
+};
+
+const isNowPlayingTheaterOpen = () =>
+  document.body.classList.contains("now-playing-theater-open");
+
+const nowPlayingTheaterSvgEnter = () =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/></svg>`;
+
+const nowPlayingTheaterSvgExit = () =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4"/></svg>`;
+
+const syncNowPlayingTheaterToggle = () => {
+  const playing =
+    queueState.currentIndex >= 0 && queueState.currentIndex < queueState.queue.length;
+  if (!nowPlayingTheaterBtn) return;
+  nowPlayingTheaterBtn.disabled = !playing;
+  const open = isNowPlayingTheaterOpen();
+  nowPlayingTheaterBtn.setAttribute(
+    "aria-label",
+    open ? "Exit theater mode" : "Enter theater mode"
+  );
+  nowPlayingTheaterBtn.innerHTML = open
+    ? nowPlayingTheaterSvgExit()
+    : nowPlayingTheaterSvgEnter();
+};
+
+const renderNowPlayingTheaterNext = () => {
+  if (!nowPlayingTheaterNext) return;
+  if (!isNowPlayingTheaterOpen()) {
+    nowPlayingTheaterNext.hidden = true;
+    nowPlayingTheaterNext.replaceChildren();
+    return;
+  }
+  const idx = queueState.currentIndex;
+  const nextIdx = idx + 1;
+  if (nextIdx < 0 || nextIdx >= queueState.queue.length) {
+    nowPlayingTheaterNext.hidden = true;
+    nowPlayingTheaterNext.replaceChildren();
+    return;
+  }
+  const item = queueState.queue[nextIdx];
+  nowPlayingTheaterNext.hidden = false;
+  nowPlayingTheaterNext.replaceChildren();
+  const label = document.createElement("p");
+  label.className = "now-playing-theater-next__label";
+  label.textContent = "Up next";
+  const row = document.createElement("div");
+  row.className = "now-playing-theater-next__row";
+  row.appendChild(createQueueRowArt(item));
+  const meta = document.createElement("div");
+  meta.className = "now-playing-theater-next__meta";
+  const title = document.createElement("p");
+  title.className = "now-playing-theater-next__title";
+  title.textContent = item.title || "Untitled";
+  title.setAttribute("data-testid", "now-playing-theater-next-title");
+  const artist = document.createElement("p");
+  artist.className = "now-playing-theater-next__artist";
+  artist.textContent = item.artist || "";
+  meta.appendChild(title);
+  meta.appendChild(artist);
+  row.appendChild(meta);
+  nowPlayingTheaterNext.appendChild(label);
+  nowPlayingTheaterNext.appendChild(row);
+};
+
+const openNowPlayingTheater = async () => {
+  if (isNowPlayingTheaterOpen()) return;
+  const idx = queueState.currentIndex;
+  if (idx < 0 || idx >= queueState.queue.length) return;
+  document.body.classList.add("now-playing-theater-open");
+  syncNowPlayingTheaterToggle();
+  renderNowPlayingTheaterNext();
+  try {
+    if (nowPlayingRow?.requestFullscreen && document.fullscreenElement !== nowPlayingRow) {
+      await nowPlayingRow.requestFullscreen();
+    }
+  } catch (_) {}
+};
+
+const closeNowPlayingTheater = async () => {
+  if (!isNowPlayingTheaterOpen()) return;
+  document.body.classList.remove("now-playing-theater-open");
+  if (nowPlayingTheaterNext) {
+    nowPlayingTheaterNext.hidden = true;
+    nowPlayingTheaterNext.replaceChildren();
+  }
+  syncNowPlayingTheaterToggle();
+  if (document.fullscreenElement === nowPlayingRow) {
+    try {
+      await document.exitFullscreen();
+    } catch (_) {}
+  }
+};
+
+const toggleNowPlayingTheater = () => {
+  if (isNowPlayingTheaterOpen()) void closeNowPlayingTheater();
+  else void openNowPlayingTheater();
+};
+
+const handleNowPlayingTheaterFullscreenChange = () => {
+  const inFs = document.fullscreenElement === nowPlayingRow;
+  if (!inFs && isNowPlayingTheaterOpen()) {
+    document.body.classList.remove("now-playing-theater-open");
+    if (nowPlayingTheaterNext) {
+      nowPlayingTheaterNext.hidden = true;
+      nowPlayingTheaterNext.replaceChildren();
+    }
+    syncNowPlayingTheaterToggle();
+    return;
+  }
+  if (inFs && !isNowPlayingTheaterOpen()) {
+    document.body.classList.add("now-playing-theater-open");
+    renderNowPlayingTheaterNext();
+    syncNowPlayingTheaterToggle();
+  }
+};
+
+const handleNowPlayingTheaterKeydown = (event) => {
+  if (event.key !== "Escape" || !isNowPlayingTheaterOpen()) return;
+  event.preventDefault();
+  void closeNowPlayingTheater();
 };
 
 const getNowPlayingEmbedKey = (item) => {
@@ -2291,6 +2468,9 @@ const SPOTIFY_ICON_VIEW = "0 0 24 24";
 const spotifySvgRestart = () =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${SPOTIFY_ICON_VIEW}" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M6 6v12H4V6h2zM18 6l-8.5 6L18 18V6h-2z"/></svg>`;
 
+const spotifySvgSkipPrevious = () =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${SPOTIFY_ICON_VIEW}" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M6 6v12h2V6H6zm3.5 6L18 6v12L9.5 12z"/></svg>`;
+
 const spotifySvgPlay = () =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${SPOTIFY_ICON_VIEW}" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7L8 5z"/></svg>`;
 
@@ -2418,7 +2598,7 @@ const trackEmbed = (item) => {
           elapsedClass: "spotify-time-elapsed",
           totalClass: "spotify-time-total",
           controlsHtml: `<div class="spotify-transport">
-            <button type="button" class="spotify-transport-btn spotify-transport-btn--secondary" data-testid="spotify-restart" aria-label="Restart track">${spotifySvgRestart()}</button>
+            <button type="button" class="spotify-transport-btn spotify-transport-btn--secondary" data-testid="spotify-restart" aria-label="Restart track">${spotifySvgSkipPrevious()}</button>
             <button type="button" class="spotify-transport-btn spotify-transport-btn--primary" data-testid="spotify-play-pause" aria-label="${paused ? "Resume" : "Pause"}">${paused ? spotifySvgPlay() : spotifySvgPause()}</button>
             <button type="button" class="spotify-transport-btn spotify-transport-btn--secondary" data-testid="spotify-skip" aria-label="Skip to next track in queue" ${skipDisabled ? "disabled" : ""}>${spotifySvgSkipNext()}</button>
           </div>`
@@ -2454,7 +2634,7 @@ const trackEmbed = (item) => {
         elapsedClass: "soundcloud-time-elapsed",
         totalClass: "soundcloud-time-total",
         controlsHtml: `<div class="soundcloud-transport">
-          <button type="button" class="soundcloud-transport-btn soundcloud-transport-btn--secondary" data-testid="soundcloud-restart" aria-label="Restart track">${spotifySvgRestart()}</button>
+          <button type="button" class="soundcloud-transport-btn soundcloud-transport-btn--secondary" data-testid="soundcloud-restart" aria-label="Restart track">${spotifySvgSkipPrevious()}</button>
           <button type="button" class="soundcloud-transport-btn soundcloud-transport-btn--primary" data-testid="soundcloud-play-pause" aria-label="${paused ? "Play" : "Pause"}">${paused ? spotifySvgPlay() : spotifySvgPause()}</button>
           <button type="button" class="soundcloud-transport-btn soundcloud-transport-btn--secondary" data-testid="soundcloud-skip" aria-label="Skip to next track in queue" ${skipDisabled ? "disabled" : ""}>${spotifySvgSkipNext()}</button>
         </div>`
@@ -2925,6 +3105,8 @@ const renderNowPlaying = () => {
     teardownSoundCloudWidget();
     setNowPlayingRowProvider(null);
     renderNowPlayingActions(null);
+    if (isNowPlayingTheaterOpen()) void closeNowPlayingTheater();
+    syncNowPlayingTheaterToggle();
     if (queueState.status === "finished") {
       nowPlayingText.textContent = "Queue ended.";
     } else {
@@ -2990,6 +3172,8 @@ const renderNowPlaying = () => {
     wireSoundCloudPanelControls(item);
     attachSoundCloudWidget(item);
   }
+  syncNowPlayingTheaterToggle();
+  renderNowPlayingTheaterNext();
 };
 
 const bindProviderConnectButton = (button, providerState) => {
@@ -4028,6 +4212,7 @@ const handleMainTabArrowKeys = (event) => {
 };
 
 const selectMainTab = (index) => {
+  if (index !== 0 && isNowPlayingTheaterOpen()) void closeNowPlayingTheater();
   mainTabIndex = index;
   tabBindings.forEach((b, i) => {
     const selected = i === index;
@@ -4052,6 +4237,12 @@ if (tabBindings.length) {
   selectMainTab(0);
   document.addEventListener("keydown", handleMainTabArrowKeys);
 }
+
+if (nowPlayingTheaterBtn) {
+  nowPlayingTheaterBtn.addEventListener("click", () => toggleNowPlayingTheater());
+}
+document.addEventListener("keydown", handleNowPlayingTheaterKeydown);
+document.addEventListener("fullscreenchange", handleNowPlayingTheaterFullscreenChange);
 
 if (spotifySearchForm && spotifySearchQuery) {
   spotifySearchForm.addEventListener("submit", async (event) => {
@@ -4121,10 +4312,6 @@ globalThis.unifyVolume?.initVolumeControl?.({
   getSpotifyPlayer: () => spotifyPlayer,
   getSoundCloudWidget: () => getSoundCloudWidget(),
   isConnected: () => isAnyProviderConnected()
-});
-
-globalThis.unifyAudioOutput?.initAudioOutputControl?.({
-  root: document.querySelector("[data-testid='audio-output-section']")
 });
 
 document.addEventListener("keydown", (event) => {

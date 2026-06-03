@@ -102,4 +102,25 @@ test.describe("unified queue", () => {
     await expect(page.locator("#nextUpText")).toHaveCount(0);
     await expect(page.locator("#queueList li.queue-row")).toHaveCount(2);
   });
+
+  test("theater mode shows vinyl, track info, next up, and exits on Escape", async ({ page, request }) => {
+    await request.post("/api/auth/spotify/connect");
+    await request.post("/api/auth/soundcloud/connect");
+    await request.post("/api/queue", { data: { provider: "spotify", trackId: "sp-1" } });
+    await request.post("/api/queue", { data: { provider: "soundcloud", trackId: "sc-1" } });
+    await request.post("/api/queue/now-playing", { data: { index: 0 } });
+
+    await page.goto("/");
+    await page.getByTestId("tab-now-playing").click();
+
+    await page.getByTestId("now-playing-theater-toggle").click();
+    await expect(page.locator("body")).toHaveClass(/now-playing-theater-open/);
+    await expect(page.locator(".vinyl-hero")).toBeVisible();
+    await expect(page.locator(".now-playing-layout__meta strong")).toContainText("Neon Skyline");
+    await expect(page.getByTestId("now-playing-theater-next")).toBeVisible();
+    await expect(page.getByTestId("now-playing-theater-next-title")).toContainText("Ocean Tape");
+
+    await page.keyboard.press("Escape");
+    await expect(page.locator("body")).not.toHaveClass(/now-playing-theater-open/);
+  });
 });

@@ -414,6 +414,62 @@ body:not(.is-loading) {
   width: 100%;
 }
 
+.status-rail__audio-output {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-rail__subtitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.status-rail__audio-output-value {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-rail__audio-output-select {
+  width: 100%;
+  padding: 8px 10px;
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text);
+  background: var(--glass-surface-strong);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.status-rail__audio-output-select:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.status-rail__audio-output-choose {
+  width: 100%;
+}
+
+.status-rail__audio-output-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
 @media (min-width: 1100px) {
   .listening-desk {
     grid-template-columns: var(--rail-queue) minmax(0, 1fr) var(--rail-status);
@@ -457,6 +513,24 @@ body:not(.is-loading) {
   .provider-row--rail button {
     padding: 6px 10px;
     font-size: 12px;
+  }
+
+  .status-rail__audio-output {
+    margin-top: 8px;
+    padding-top: 8px;
+    gap: 6px;
+  }
+
+  .status-rail__subtitle {
+    font-size: 0.6875rem;
+  }
+
+  .status-rail__audio-output-value {
+    font-size: 0.75rem;
+  }
+
+  .status-rail__audio-output-hint {
+    font-size: 0.6875rem;
   }
 
   .search-panel-provider {

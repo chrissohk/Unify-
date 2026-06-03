@@ -148,7 +148,8 @@
   --nav-brand-font-size: clamp(1.25rem, 2.8vw, 1.5rem);
   --nav-brand-weight: 800;
   --nav-header-gap: 14px;
-  --volume-control-gap: 4px;
+  --volume-control-gap: 0;
+  --volume-mute-size: 36px;
   --volume-slider-width: 132px;
   --shell-max: 1280px;
   --rail-queue: 380px;
@@ -615,7 +616,7 @@ body:not(.is-loading) {
   display: inline-flex;
   align-items: center;
   gap: var(--volume-control-gap);
-  padding: 4px 10px 4px 6px;
+  padding: 3px 8px 3px 4px;
   min-height: var(--nav-control-min-height);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-full);
@@ -647,9 +648,9 @@ body:not(.is-loading) {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: var(--touch-target-min);
-  height: var(--touch-target-min);
-  margin: -4px 0;
+  width: var(--volume-mute-size);
+  height: var(--volume-mute-size);
+  margin: -3px -10px -3px -2px;
   padding: 0;
   border: none;
   border-radius: var(--radius-full);
@@ -708,7 +709,7 @@ body:not(.is-loading) {
   align-items: center;
   width: var(--volume-slider-width);
   min-width: 0;
-  margin-left: -6px;
+  margin-left: -2px;
 }
 
 .volume-control__slider {

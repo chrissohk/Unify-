@@ -148,6 +148,8 @@
   --nav-brand-font-size: clamp(1.25rem, 2.8vw, 1.5rem);
   --nav-brand-weight: 800;
   --nav-header-gap: 14px;
+  --volume-control-gap: 4px;
+  --volume-slider-width: 132px;
   --shell-max: 1280px;
   --rail-queue: 380px;
   --rail-status: 172px;
@@ -612,7 +614,7 @@ body:not(.is-loading) {
 .volume-control {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--volume-control-gap);
   padding: 4px 10px 4px 6px;
   min-height: var(--nav-control-min-height);
   border: 1px solid var(--glass-border);
@@ -704,8 +706,9 @@ body:not(.is-loading) {
 .volume-control__slider-wrap {
   display: flex;
   align-items: center;
-  width: 112px;
+  width: var(--volume-slider-width);
   min-width: 0;
+  margin-left: -6px;
 }
 
 .volume-control__slider {

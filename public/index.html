@@ -559,6 +559,40 @@
         <aside class="status-rail card card--rail" aria-label="Connections" data-testid="status-rail">
           <h2 class="status-rail__title">Connections</h2>
           <div id="statusRailProviders" class="status-rail__providers"></div>
+          <section
+            class="status-rail__audio-output"
+            data-testid="audio-output-section"
+            aria-labelledby="audio-output-heading"
+          >
+            <h3 id="audio-output-heading" class="status-rail__subtitle">Audio output</h3>
+            <p
+              id="audioOutputLabel"
+              class="status-rail__audio-output-value"
+              data-testid="audio-output-label"
+              aria-live="polite"
+            ></p>
+            <select
+              id="audioOutputSelect"
+              class="status-rail__audio-output-select"
+              hidden
+              data-testid="audio-output-select"
+              aria-label="Audio output device"
+            ></select>
+            <button
+              type="button"
+              id="audioOutputChooseBtn"
+              class="btn btn--ghost status-rail__audio-output-choose"
+              hidden
+              data-testid="audio-output-choose"
+            >
+              Choose output…
+            </button>
+            <p
+              id="audioOutputHint"
+              class="hint-text status-rail__audio-output-hint"
+              data-testid="audio-output-hint"
+            ></p>
+          </section>
         </aside>
       </div>
     </main>
@@ -659,6 +693,8 @@
     <script src="/spotifyAdvanceLogic.js"></script>
     <script src="/spotifyReloadSnapshot.js"></script>
     <script src="/volumeControl.js"></script>
+    <script src="/queueAutoPlay.js"></script>
+    <script src="/audioOutputControl.js"></script>
     <script src="/filterPlaylistTracks.js"></script>
     <script src="/app.js"></script>
   </body>

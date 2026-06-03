@@ -2796,9 +2796,15 @@ const queueTrackPayload = async ({
     }
     return false;
   }
+  const created = await response.json();
   await fetchQueueState();
-  if (queueState.currentIndex === -1 && queueState.queue.length > 0) {
-    playIndex(0);
+  const autoPlayIndex = globalThis.unifyQueueAutoPlay?.resolveAutoPlayIndexAfterQueue?.(
+    queueState.queue,
+    queueState.currentIndex,
+    created?.id
+  );
+  if (typeof autoPlayIndex === "number" && autoPlayIndex >= 0) {
+    await playIndex(autoPlayIndex);
   }
   return true;
 };
@@ -4115,6 +4121,10 @@ globalThis.unifyVolume?.initVolumeControl?.({
   getSpotifyPlayer: () => spotifyPlayer,
   getSoundCloudWidget: () => getSoundCloudWidget(),
   isConnected: () => isAnyProviderConnected()
+});
+
+globalThis.unifyAudioOutput?.initAudioOutputControl?.({
+  root: document.querySelector("[data-testid='audio-output-section']")
 });
 
 document.addEventListener("keydown", (event) => {

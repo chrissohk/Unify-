@@ -103,6 +103,22 @@ test.describe("unified queue", () => {
     await expect(page.locator("#queueList li.queue-row")).toHaveCount(2);
   });
 
+  test("now playing sets cover background gradient in normal tab", async ({ page, request }) => {
+    await request.post("/api/auth/spotify/connect");
+    await request.post("/api/queue", { data: { provider: "spotify", trackId: "sp-1" } });
+    await request.post("/api/queue/now-playing", { data: { index: 0 } });
+
+    await page.goto("/");
+    await page.getByTestId("tab-now-playing").click();
+
+    await expect(page.locator("body")).not.toHaveClass(/now-playing-theater-open/);
+    const coverBg = await page.locator("#nowPlayingRow").evaluate((el) =>
+      el.style.getPropertyValue("--now-playing-cover-bg")
+    );
+    expect(coverBg.length).toBeGreaterThan(0);
+    expect(coverBg).toMatch(/gradient|rgb/i);
+  });
+
   test("theater mode shows vinyl, track info, next up, and exits on Escape", async ({ page, request }) => {
     await request.post("/api/auth/spotify/connect");
     await request.post("/api/auth/soundcloud/connect");
@@ -116,7 +132,7 @@ test.describe("unified queue", () => {
     await page.getByTestId("now-playing-theater-toggle").click();
     await expect(page.locator("body")).toHaveClass(/now-playing-theater-open/);
     const theaterBg = await page.locator("#nowPlayingRow").evaluate((el) =>
-      el.style.getPropertyValue("--theater-bg")
+      el.style.getPropertyValue("--now-playing-cover-bg")
     );
     expect(theaterBg.length).toBeGreaterThan(0);
     expect(theaterBg).toMatch(/gradient|rgb/i);

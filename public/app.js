@@ -192,7 +192,7 @@ const renderNowPlayingHero = (item) => {
       cover.hidden = true;
     }
     if (fallback) fallback.hidden = false;
-    applyTheaterBackgroundFromCover(null, null);
+    applyNowPlayingCoverBackground(null, null);
     return;
   }
 
@@ -202,13 +202,13 @@ const renderNowPlayingHero = (item) => {
   if (fallback) fallback.hidden = Boolean(coverUrl);
 
   if (!cover) {
-    applyTheaterBackgroundFromCover(null, item);
+    applyNowPlayingCoverBackground(null, item);
     return;
   }
   if (!coverUrl) {
     cover.hidden = true;
     cover.removeAttribute("src");
-    applyTheaterBackgroundFromCover(null, item);
+    applyNowPlayingCoverBackground(null, item);
     return;
   }
 
@@ -216,18 +216,18 @@ const renderNowPlayingHero = (item) => {
   cover.crossOrigin = "anonymous";
   cover.referrerPolicy = "no-referrer";
   cover.onerror = () => {
-    applyTheaterBackgroundFromCover(null, item);
+    applyNowPlayingCoverBackground(null, item);
   };
   if (cover.getAttribute("src") !== coverUrl) {
     cover.setAttribute("src", coverUrl);
   }
-  applyTheaterBackgroundFromCover(cover, item);
+  applyNowPlayingCoverBackground(cover, item);
 };
 
-const THEATER_BG_DARKEN = 0.4;
+const NOW_PLAYING_COVER_DARKEN = 0.4;
 
 const darkenCoverRgb = (r, g, b) =>
-  `rgb(${Math.round(r * THEATER_BG_DARKEN)}, ${Math.round(g * THEATER_BG_DARKEN)}, ${Math.round(b * THEATER_BG_DARKEN)})`;
+  `rgb(${Math.round(r * NOW_PLAYING_COVER_DARKEN)}, ${Math.round(g * NOW_PLAYING_COVER_DARKEN)}, ${Math.round(b * NOW_PLAYING_COVER_DARKEN)})`;
 
 const averageCoverRegion = (data, width, height, yStart, yEnd) => {
   let r = 0;
@@ -249,7 +249,7 @@ const averageCoverRegion = (data, width, height, yStart, yEnd) => {
   return { r: r / count, g: g / count, b: b / count };
 };
 
-const sampleCoverTheaterGradient = (imgEl) => {
+const sampleCoverNowPlayingGradient = (imgEl) => {
   if (!imgEl?.complete || !imgEl.naturalWidth) return null;
   try {
     const canvas = document.createElement("canvas");
@@ -275,7 +275,7 @@ const sampleCoverTheaterGradient = (imgEl) => {
   }
 };
 
-const getTheaterBackgroundFallback = (item) => {
+const getNowPlayingCoverBackgroundFallback = (item) => {
   if (!item) return null;
   if (item.provider === "spotify") {
     return "var(--gradient-spotify-glow), linear-gradient(175deg, rgba(26, 36, 32, 0.95) 0%, #0b0b0c 100%)";
@@ -286,18 +286,20 @@ const getTheaterBackgroundFallback = (item) => {
   return "var(--gradient-unified-glow), linear-gradient(175deg, #141416 0%, #0b0b0c 100%)";
 };
 
-const applyTheaterBackgroundFromCover = (coverEl, item) => {
+const applyNowPlayingCoverBackground = (coverEl, item) => {
   if (!nowPlayingRow) return;
   const applyBackground = (value) => {
-    if (value) nowPlayingRow.style.setProperty("--theater-bg", value);
-    else nowPlayingRow.style.removeProperty("--theater-bg");
+    if (value) nowPlayingRow.style.setProperty("--now-playing-cover-bg", value);
+    else nowPlayingRow.style.removeProperty("--now-playing-cover-bg");
   };
   if (!coverEl || coverEl.hidden || !coverEl.getAttribute("src")) {
-    applyBackground(getTheaterBackgroundFallback(item));
+    applyBackground(getNowPlayingCoverBackgroundFallback(item));
     return;
   }
   const sample = () => {
-    applyBackground(sampleCoverTheaterGradient(coverEl) || getTheaterBackgroundFallback(item));
+    applyBackground(
+      sampleCoverNowPlayingGradient(coverEl) || getNowPlayingCoverBackgroundFallback(item)
+    );
   };
   if (coverEl.complete && coverEl.naturalWidth) sample();
   else coverEl.addEventListener("load", sample, { once: true });

@@ -4,6 +4,74 @@ This is a lightweight MVP that lets you queue tracks from Spotify and SoundCloud
 
 **New here?** Start with [Quick start (step by step)](#quick-start-step-by-step) below. Technical details for developers are in [For developers](#for-developers).
 
+**Already set up?** Jump to [Next time (already set up)](#next-time-already-set-up) — no need to clone or reinstall.
+
+---
+
+## Next time (already set up)
+
+If you have already completed the Quick start once, you do **not** need to clone the repo again, reinstall Node.js, or recreate **`.env`** — unless you moved to a new computer or deleted the project folder.
+
+### Start the app
+
+1. Open **PowerShell** (Windows) or **Terminal** (Mac).
+2. Go to the **same folder** where you ran setup before (it should contain `package.json`, `.env`, and usually `node_modules`).
+
+   **Windows (PowerShell)** — use the path that matches your machine:
+
+   ```powershell
+   cd "$env:USERPROFILE\OneDrive\Desktop\Soundcloud and Spotify Multiplayer"
+   ```
+
+   or, if you cloned via Git:
+
+   ```powershell
+   cd "$env:USERPROFILE\OneDrive\Desktop\Unify-"
+   ```
+
+   **Mac (Terminal):**
+
+   ```bash
+   cd ~/Desktop/Unify-
+   ```
+
+3. Start the server:
+
+   ```bash
+   npm start
+   ```
+
+   Leave this window **open** while you use the app.
+
+4. Open your browser to **http://127.0.0.1:3000** (do **not** double-click `public/index.html`).
+
+5. Click **Connect** for Spotify and SoundCloud. This is required after each server restart (your queue may still be there, but provider logins must be reconnected).
+
+### You can skip these (one-time setup only)
+
+- Do **not** run `git clone` again
+- Do **not** reinstall Node.js
+- Do **not** recreate **`.env`** (unless you deleted it or moved the folder)
+- Do **not** run `npm install` unless you are updating the project or `node_modules` is missing
+
+### Stop the app
+
+Click the terminal window and press **Ctrl+C**.
+
+### Get updates from GitHub (optional)
+
+Only if you originally used **Git clone** (Step 2 Option A) and want the latest code:
+
+```powershell
+git pull
+npm install
+npm start
+```
+
+### If something broke
+
+See [Common problems (plain language)](#common-problems-plain-language) — especially if it **worked yesterday but not today**, or Connect says **OAuth not configured** (usually the wrong folder or editing `.env.example` instead of `.env`).
+
 ---
 
 ## Quick start (step by step)
@@ -349,7 +417,7 @@ More detail (redirect URI checklist, optional scopes): [OAuth setup (your own AP
 6. **Disconnect**  
    Click **Disconnect** if you want to sign out of a service on this computer.
 
-**After you close the terminal or restart the computer:** run `npm start` again, open **http://127.0.0.1:3000**, and click **Connect** again for Spotify and SoundCloud (your login is remembered by Spotify/SoundCloud in the browser, but this app needs a fresh connection each time the server restarts).
+**After you close the terminal or restart the computer:** see [Next time (already set up)](#next-time-already-set-up).
 
 ---
 
@@ -395,6 +463,8 @@ The sections below describe features, architecture, testing, and deployment in m
 Provide accurate `durationSec` when queuing tracks so the wall-clock and timer paths stay aligned with real track length.
 
 ## Run locally
+
+Returning after initial setup: see [Next time (already set up)](#next-time-already-set-up).
 
 Requires **Node.js 22 LTS** (see [Step 1](#step-1--install-nodejs) in Quick start).
 

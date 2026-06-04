@@ -31,6 +31,7 @@ const {
   spotifyListCurrentUserPlaylists,
   spotifyListPlaylistTracks,
   spotifyFetchLikedSongsSummary,
+  buildSpotifyLikedSongsSummary,
   SPOTIFY_LIKED_SONGS_ID,
   isPlaylistOwnedByUser,
   spotifyStartTrack,
@@ -133,13 +134,18 @@ function mockCatalogSearch(providerKey, query) {
 const SPOTIFY_DEMO_PLAYLIST_ID = "demo-playlist";
 
 function mockSpotifyLikedSongsSummary() {
-  return {
-    id: SPOTIFY_LIKED_SONGS_ID,
-    name: "Liked Songs",
-    trackCount: providers.spotify.tracks.length,
-    kind: "liked_songs",
-    provider: "spotify"
-  };
+  return buildSpotifyLikedSongsSummary(providers.spotify.tracks.length);
+}
+
+function spotifyLikedSongsErrorHint(likedResult) {
+  if (!likedResult || likedResult.ok) return null;
+  if (likedResult.status === 403) {
+    return "Reconnect Spotify (Disconnect, then Connect) to allow access to Liked Songs.";
+  }
+  if (likedResult.code === "SPOTIFY_RATE_LIMIT") {
+    return "Spotify is rate-limited — Liked Songs will appear after the limit clears.";
+  }
+  return "Could not load Liked Songs from Spotify.";
 }
 
 function mockSpotifyPlaylistSummaries() {
@@ -633,6 +639,15 @@ app.get("/api/spotify/playlists", async (req, res) => {
   };
   if (likedResult.ok && likedResult.likedSongs) {
     body.likedSongs = likedResult.likedSongs;
+  } else {
+    body.likedSongs = buildSpotifyLikedSongsSummary(0);
+    body.likedSongsUnavailable = true;
+    const hint = spotifyLikedSongsErrorHint(likedResult);
+    body.likedSongsError = {
+      code: likedResult.code || "SPOTIFY_LIKED_SONGS_FAILED",
+      status: likedResult.status,
+      hint
+    };
   }
 
   return res.json(body);

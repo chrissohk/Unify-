@@ -9,7 +9,8 @@ const {
   normalizePlaylistTrackRow,
   resolvePlaylistTrackCount,
   spotifyListCurrentUserPlaylists,
-  spotifyListPlaylistTracks
+  spotifyListPlaylistTracks,
+  spotifyFetchLikedSongsSummary
 } = require("../lib/spotifyWebApi");
 const { nowSec } = require("../lib/playbackGuards");
 
@@ -401,6 +402,51 @@ test("GET /api/spotify/playlists/:id/tracks demo vs unknown id", async () => {
     .expect(({ body }) => {
       assert.equal(body.code, "SPOTIFY_PLAYLIST_NOT_FOUND");
     });
+});
+
+test("spotifyFetchLikedSongsSummary uses saved-tracks total without image enrichment", async () => {
+  const originalFetch = global.fetch;
+  const exp = nowSec() + 7200;
+  const sessions = { spotify: { accessToken: "access", expiresAt: exp } };
+  const persist = () => {};
+  global.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes("/v1/me/tracks")) {
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({
+          total: 99,
+          items: [
+            {
+              track: {
+                id: "s1",
+                type: "track",
+                name: "Heart",
+                duration_ms: 200000,
+                artists: [{ name: "Artist" }]
+              }
+            }
+          ],
+          next: null
+        }),
+        text: async () => ""
+      };
+    }
+    if (u.includes("/v1/tracks?")) {
+      throw new Error("liked songs summary must not batch-fetch track images");
+    }
+    throw new Error(`unexpected fetch: ${u}`);
+  };
+  try {
+    const r = await spotifyFetchLikedSongsSummary({ sessions, persist });
+    assert.equal(r.ok, true);
+    assert.equal(r.likedSongs.id, SPOTIFY_LIKED_SONGS_ID);
+    assert.equal(r.likedSongs.trackCount, 99);
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
 
 test("spotifyListPlaylistTracks routes liked songs id to saved tracks", async () => {

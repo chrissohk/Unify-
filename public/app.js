@@ -160,8 +160,10 @@ const refreshNowPlayingMetaTicker = (panel, { title, artist } = {}) => {
   const textEl = textSpans[0] ?? null;
   const textDupEl = textSpans[1] ?? null;
   const viewportEl = meta.querySelector(".now-playing-meta-ticker__viewport");
-  const titleFromDom = meta.querySelector("strong")?.textContent;
-  const artistFromDom = meta.querySelector("span")?.textContent;
+  const titleEl = meta.querySelector(".now-playing-layout__title");
+  const artistEl = meta.querySelector(".now-playing-layout__artist");
+  const titleFromDom = titleEl?.textContent;
+  const artistFromDom = artistEl?.textContent;
 
   if (!isNowPlayingTheaterOpen()) {
     if (ticker) {
@@ -175,24 +177,16 @@ const refreshNowPlayingMetaTicker = (panel, { title, artist } = {}) => {
     return;
   }
 
-  if (!ticker || !textEl || !textDupEl) return;
-
-  const label = formatNowPlayingLabel(
-    title ?? titleFromDom,
-    artist ?? artistFromDom
-  );
+  const resolvedTitle = title ?? titleFromDom;
+  const resolvedArtist = artist ?? artistFromDom;
+  const label = formatNowPlayingLabel(resolvedTitle, resolvedArtist);
   meta.setAttribute("aria-label", label);
-  ticker.setAttribute("title", label);
-  applyNowPlayingTicker({
-    durationHost: meta,
-    durationVar: "--meta-ticker-duration",
-    tickerEl: ticker,
-    staticClass: "now-playing-meta-ticker--static",
-    textEl,
-    textDupEl,
-    viewportEl,
-    label
-  });
+  if (titleEl && title !== undefined) {
+    titleEl.textContent = String(resolvedTitle || "").trim() || "Unknown title";
+  }
+  if (artistEl && artist !== undefined) {
+    artistEl.textContent = String(resolvedArtist || "").trim();
+  }
 };
 
 const renderNowPlayingMetaTicker = (panel, opts = {}) => {
@@ -576,8 +570,8 @@ const patchSpotifyNowPlayingPanel = (item) => {
   const hasNext = cur >= 0 && cur < q.length - 1;
   const skipDisabled = advanceTrackInFlight || !hasNext;
 
-  const titleEl = panel.querySelector(".now-playing-layout__meta strong");
-  const artistEl = panel.querySelector(".now-playing-layout__meta span");
+  const titleEl = panel.querySelector(".now-playing-layout__title");
+  const artistEl = panel.querySelector(".now-playing-layout__artist");
   const elapsedEl = panel.querySelector(".spotify-time-elapsed");
   const totalEl = panel.querySelector(".spotify-time-total");
   const fillEl = panel.querySelector(".spotify-progress-fill");
@@ -2698,8 +2692,8 @@ const buildNowPlayingLayout = ({
               </span>
             </span>
           </div>
-          <strong>${escapeHtmlText(title)}</strong>
-          <span>${escapeHtmlText(artist)}</span>
+          <strong class="now-playing-layout__title">${escapeHtmlText(title)}</strong>
+          <span class="now-playing-layout__artist">${escapeHtmlText(artist)}</span>
         </div>
         <div class="now-playing-layout__progress">
           <div class="${progressClass}">
@@ -4063,18 +4057,8 @@ const formatPlaylistTitleWithCount = (playlistName, count, hasMore = false) => {
   return `${base} (${countLabel} ${noun})`;
 };
 
-const syncSoundCloudLikesLibraryCount = (loadedCount, hasMore) => {
-  const likes = soundcloudPlaylistBrowser.likes;
-  if (!likes || likes.id !== SOUNDCLOUD_LIKES_PLAYLIST_ID) return;
-  const n = Number(loadedCount);
-  if (!Number.isFinite(n) || n < 0) return;
-  const nextCount = Math.max(likes.trackCount || 0, n);
-  const nextHasMore = Boolean(hasMore);
-  if (nextCount === likes.trackCount && nextHasMore === Boolean(likes.trackCountHasMore)) return;
-  likes.trackCount = nextCount;
-  likes.trackCountHasMore = nextHasMore;
-  renderSoundCloudLibraryRows();
-};
+const formatSoundCloudPlaylistTitle = (playlistName) =>
+  String(playlistName || "Tracks").trim() || "Tracks";
 
 const setSpotifyTracksPaneOpen = (open) => {
   if (spotifyLibrarySplit) {
@@ -4114,62 +4098,6 @@ const fetchSoundCloudLibraryPage = async (ownedOffset, likedOffset) => {
   return res.json();
 };
 
-let soundcloudPlaylistCountEnrichInFlight = false;
-
-const collectSoundCloudPlaylistsNeedingCounts = () => {
-  const pending = [];
-  const push = (pl) => {
-    if (pl && pl.trackCountPending && pl.id) {
-      pending.push({ id: pl.id, secretToken: pl.secretToken });
-    }
-  };
-  soundcloudPlaylistBrowser.ownedItems.forEach(push);
-  soundcloudPlaylistBrowser.likedItems.forEach(push);
-  return pending;
-};
-
-const mergeSoundCloudEnrichedCounts = (playlists) => {
-  if (!Array.isArray(playlists) || playlists.length === 0) return;
-  const byId = new Map(playlists.map((p) => [String(p.id), p]));
-  const apply = (pl) => {
-    const updated = byId.get(String(pl.id));
-    if (!updated) return pl;
-    return {
-      ...pl,
-      trackCount: updated.trackCount,
-      trackCountPending: false
-    };
-  };
-  soundcloudPlaylistBrowser.ownedItems = soundcloudPlaylistBrowser.ownedItems.map(apply);
-  soundcloudPlaylistBrowser.likedItems = soundcloudPlaylistBrowser.likedItems.map(apply);
-};
-
-const scheduleSoundCloudPlaylistCountEnrichment = () => {
-  const playlists = collectSoundCloudPlaylistsNeedingCounts();
-  if (playlists.length === 0 || soundcloudPlaylistCountEnrichInFlight) return;
-  soundcloudPlaylistCountEnrichInFlight = true;
-  void (async () => {
-    try {
-      const res = await apiFetch("/api/soundcloud/playlists/enrich-counts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playlists })
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      mergeSoundCloudEnrichedCounts(data.playlists);
-      renderSoundCloudLibraryRows();
-    } catch {
-      // background enrich is best-effort
-    } finally {
-      soundcloudPlaylistCountEnrichInFlight = false;
-      if (collectSoundCloudPlaylistsNeedingCounts().length > 0) {
-        scheduleSoundCloudPlaylistCountEnrichment();
-      }
-    }
-  })();
-};
-
 const fetchSoundCloudPlaylistTracksPage = async (playlistId, offset, secretToken) => {
   let path = `/api/soundcloud/playlists/${encodeURIComponent(playlistId)}/tracks?limit=50&offset=${offset}`;
   if (secretToken) {
@@ -4189,19 +4117,7 @@ const appendSoundCloudPlaylistRow = (listEl, pl, testId, onSelect) => {
   btn.type = "button";
   btn.className = "playlist-row-btn";
   const owner = pl.ownerDisplayName ? ` · ${pl.ownerDisplayName}` : "";
-  const count = pl.trackCount;
-  const pending =
-    pl.trackCountPending || count == null || count === undefined;
-  const countStr = pending
-    ? "--"
-    : pl.trackCountHasMore
-      ? `${count}+`
-      : String(count);
-  const countLabel =
-    pl.kind === "likes" || pl.kind === "liked_songs"
-      ? `${countStr} liked track${!pending && count === 1 && !pl.trackCountHasMore ? "" : "s"}`
-      : `${countStr} track${!pending && count === 1 && !pl.trackCountHasMore ? "" : "s"}`;
-  btn.textContent = `${pl.name} (${countLabel}${owner})`;
+  btn.textContent = `${pl.name}${owner}`;
   btn.setAttribute("data-testid", testId);
   btn.onclick = () => void onSelect(pl);
   li.appendChild(btn);
@@ -4341,7 +4257,6 @@ const bootstrapSoundCloudPlaylistBrowser = async () => {
     if (!soundcloudPlaylistBrowser.selectedId) {
       hideSoundCloudPlaylistTracksPane();
     }
-    scheduleSoundCloudPlaylistCountEnrichment();
   } catch (e) {
     const msg = e.message || "Failed to load library.";
     noteAuthFailureFromMessage("soundcloud", msg);
@@ -4375,7 +4290,6 @@ const loadMoreSoundCloudOwnedPlaylists = async () => {
     }
     renderSoundCloudLibraryRows();
     soundcloudOwnedPlaylistsMore.hidden = soundcloudPlaylistBrowser.ownedNextOffset === null;
-    scheduleSoundCloudPlaylistCountEnrichment();
   } catch (e) {
     alertUnlessAuthNotice("soundcloud", e.message, "Load more failed");
   } finally {
@@ -4402,7 +4316,6 @@ const loadMoreSoundCloudLikedPlaylists = async () => {
     }
     renderSoundCloudLibraryRows();
     soundcloudLikedPlaylistsMore.hidden = soundcloudPlaylistBrowser.likedNextOffset === null;
-    scheduleSoundCloudPlaylistCountEnrichment();
   } catch (e) {
     alertUnlessAuthNotice("soundcloud", e.message, "Load more failed");
   } finally {
@@ -4420,7 +4333,7 @@ const selectSoundCloudPlaylist = async (playlistId, playlistName, { secretToken 
   soundcloudPlaylistBrowser.selectedSecretToken = secretToken || null;
   soundcloudPlaylistBrowser.tracks = [];
   soundcloudPlaylistBrowser.tracksNextOffset = null;
-  soundcloudSelectedPlaylistTitle.textContent = formatPlaylistTitleWithCount(playlistName, 0);
+  soundcloudSelectedPlaylistTitle.textContent = formatSoundCloudPlaylistTitle(playlistName);
   soundcloudPlaylistTracksPanel.hidden = false;
   setSoundCloudTracksPaneOpen(true);
   soundcloudPlaylistTracks.innerHTML = "";
@@ -4436,16 +4349,7 @@ const selectSoundCloudPlaylist = async (playlistId, playlistName, { secretToken 
     soundcloudPlaylistBrowser.tracksNextOffset =
       data.nextOffset === null || data.nextOffset === undefined ? null : data.nextOffset;
     renderSoundCloudPlaylistTracks();
-    const n = soundcloudPlaylistBrowser.tracks.length;
-    const hasMore = soundcloudPlaylistBrowser.tracksNextOffset !== null;
-    if (playlistId === SOUNDCLOUD_LIKES_PLAYLIST_ID) {
-      syncSoundCloudLikesLibraryCount(n, hasMore);
-    }
-    soundcloudSelectedPlaylistTitle.textContent = formatPlaylistTitleWithCount(
-      playlistName,
-      n,
-      hasMore
-    );
+    soundcloudSelectedPlaylistTitle.textContent = formatSoundCloudPlaylistTitle(playlistName);
     setSoundCloudPlaylistTracksLoading(false);
     if (soundcloudPlaylistTracksStatus) {
       soundcloudPlaylistTracksStatus.textContent = "";
@@ -4482,15 +4386,8 @@ const loadMoreSoundCloudPlaylistTracks = async () => {
     soundcloudPlaylistBrowser.tracksNextOffset =
       data.nextOffset === null || data.nextOffset === undefined ? null : data.nextOffset;
     renderSoundCloudPlaylistTracks();
-    const n = soundcloudPlaylistBrowser.tracks.length;
-    const hasMore = soundcloudPlaylistBrowser.tracksNextOffset !== null;
-    if (soundcloudPlaylistBrowser.selectedId === SOUNDCLOUD_LIKES_PLAYLIST_ID) {
-      syncSoundCloudLikesLibraryCount(n, hasMore);
-    }
-    soundcloudSelectedPlaylistTitle.textContent = formatPlaylistTitleWithCount(
-      soundcloudPlaylistBrowser.selectedTitle,
-      n,
-      hasMore
+    soundcloudSelectedPlaylistTitle.textContent = formatSoundCloudPlaylistTitle(
+      soundcloudPlaylistBrowser.selectedTitle
     );
     if (soundcloudPlaylistTracksStatus) {
       soundcloudPlaylistTracksStatus.textContent = "";
@@ -4643,7 +4540,8 @@ renderSpotifySdkBanner();
 globalThis.unifyVolume?.initVolumeControl?.({
   getSpotifyPlayer: () => spotifyPlayer,
   getSoundCloudWidget: () => getSoundCloudWidget(),
-  isConnected: () => isAnyProviderConnected()
+  isConnected: () => isAnyProviderConnected(),
+  theaterRoot: document.querySelector(".now-playing-theater-volume")
 });
 
 document.addEventListener("keydown", (event) => {

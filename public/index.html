@@ -231,24 +231,92 @@
                     <div id="nowPlayingActions" class="now-playing-actions" hidden></div>
                   </div>
                   <div id="playerHost"></div>
-                  <button
-                    type="button"
-                    id="nowPlayingTheaterBtn"
-                    class="now-playing-theater-toggle"
-                    data-testid="now-playing-theater-toggle"
-                    aria-label="Enter theater mode"
-                    disabled
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                      <path
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"
-                      />
-                    </svg>
-                  </button>
+                  <div class="now-playing-theater-chrome" aria-label="Theater controls">
+                    <div
+                      class="now-playing-theater-volume volume-control volume-control--theater"
+                      data-testid="theater-volume"
+                      aria-label="Volume"
+                    >
+                      <button
+                        type="button"
+                        class="volume-control__mute"
+                        id="theaterVolumeMuteBtn"
+                        data-testid="theater-volume-mute"
+                        aria-label="Mute"
+                        aria-pressed="false"
+                      >
+                        <span class="volume-control__icon-stack" aria-hidden="true">
+                          <svg
+                            class="volume-control__icon volume-control__icon--speaker"
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            width="20"
+                            height="20"
+                            aria-hidden="true"
+                          >
+                            <path
+                              class="volume-control__icon-body"
+                              fill="currentColor"
+                              d="M3 10v4h4l5 5V5L7 10H3z"
+                            />
+                            <path
+                              class="volume-control__icon-wave"
+                              fill="currentColor"
+                              d="M14.5 12c0-1.77-1.02-3.29-2.5-4.03v8.06c1.48-.74 2.5-2.26 2.5-4.03z"
+                            />
+                          </svg>
+                          <svg
+                            class="volume-control__icon volume-control__icon--mute-x"
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 10 10"
+                            width="10"
+                            height="10"
+                            aria-hidden="true"
+                            hidden
+                          >
+                            <path
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="1.75"
+                              stroke-linecap="round"
+                              d="M2 2l6 6M8 2L2 8"
+                            />
+                          </svg>
+                        </span>
+                      </button>
+                      <div class="volume-control__slider-wrap" data-testid="theater-volume-slider-wrap">
+                        <input
+                          type="range"
+                          class="volume-control__slider"
+                          id="theaterVolumeSlider"
+                          min="0"
+                          max="100"
+                          value="80"
+                          step="1"
+                          aria-label="Volume"
+                          data-testid="theater-volume-slider"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      id="nowPlayingTheaterBtn"
+                      class="now-playing-theater-toggle"
+                      data-testid="now-playing-theater-toggle"
+                      aria-label="Enter theater mode"
+                      disabled
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                        <path
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"
+                        />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 <section class="recent-played" aria-label="Recently played">
                   <h3 class="recent-played__title">Recently played</h3>

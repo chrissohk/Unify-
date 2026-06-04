@@ -16,18 +16,18 @@ let preMuteVolume = DEFAULT_VOLUME;
 /** @type {{ getSpotifyPlayer?: () => unknown; getSoundCloudWidget?: () => unknown; isConnected?: () => boolean } | null} */
 let hooks = null;
 
-/** @type {HTMLElement | null} */
-let rootEl = null;
-/** @type {HTMLButtonElement | null} */
-let muteBtn = null;
-/** @type {HTMLInputElement | null} */
-let sliderEl = null;
+/** @type {HTMLElement[]} */
+let rootEls = [];
+/** @type {HTMLButtonElement[]} */
+let muteBtns = [];
+/** @type {HTMLInputElement[]} */
+let sliderEls = [];
 /** @type {HTMLInputElement | null} */
 let popoverSliderEl = null;
 /** @type {HTMLElement | null} */
 let popoverEl = null;
-/** @type {SVGElement | null} */
-let iconMuteX = null;
+/** @type {SVGElement[]} */
+let iconMuteXs = [];
 
 let popoverOpen = false;
 /** @type {MediaQueryList | null} */
@@ -75,40 +75,39 @@ const paintSliderFill = (input) => {
 
 const syncSliderInputs = () => {
   const pct = String(percentFromLevel(muted ? 0 : volumeLevel));
-  if (sliderEl) sliderEl.value = pct;
+  for (const input of sliderEls) input.value = pct;
   if (popoverSliderEl) popoverSliderEl.value = pct;
-  paintSliderFill(sliderEl);
+  for (const input of sliderEls) paintSliderFill(input);
   paintSliderFill(popoverSliderEl);
 };
 
 const syncMuteUi = () => {
-  if (!muteBtn) return;
   const eff = getEffectiveVolume();
-  muteBtn.setAttribute("aria-pressed", muted ? "true" : "false");
-  muteBtn.setAttribute(
-    "aria-label",
-    muted ? "Unmute" : eff < 0.35 ? "Mute (low volume)" : "Mute"
-  );
-  if (rootEl) {
-    rootEl.classList.toggle("is-muted", muted);
-    if (popoverMq?.matches) {
-      rootEl.setAttribute("aria-haspopup", "dialog");
-      rootEl.setAttribute("aria-expanded", popoverOpen ? "true" : "false");
+  const muteLabel = muted ? "Unmute" : eff < 0.35 ? "Mute (low volume)" : "Mute";
+  for (const btn of muteBtns) {
+    btn.setAttribute("aria-pressed", muted ? "true" : "false");
+    btn.setAttribute("aria-label", muteLabel);
+  }
+  const primaryRoot = rootEls[0] ?? null;
+  for (const root of rootEls) {
+    root.classList.toggle("is-muted", muted);
+    if (root === primaryRoot && popoverMq?.matches) {
+      root.setAttribute("aria-haspopup", "dialog");
+      root.setAttribute("aria-expanded", popoverOpen ? "true" : "false");
     } else {
-      rootEl.removeAttribute("aria-haspopup");
-      rootEl.removeAttribute("aria-expanded");
+      root.removeAttribute("aria-haspopup");
+      root.removeAttribute("aria-expanded");
     }
   }
-  if (iconMuteX) iconMuteX.hidden = !muted;
+  for (const icon of iconMuteXs) icon.hidden = !muted;
 };
 
 const syncDisabledUi = () => {
-  if (!rootEl) return;
   const connected = hooks?.isConnected?.() ?? true;
-  rootEl.classList.toggle("is-disabled", !connected);
-  if (sliderEl) sliderEl.disabled = !connected;
+  for (const root of rootEls) root.classList.toggle("is-disabled", !connected);
+  for (const input of sliderEls) input.disabled = !connected;
   if (popoverSliderEl) popoverSliderEl.disabled = !connected;
-  if (muteBtn) muteBtn.disabled = !connected;
+  for (const btn of muteBtns) btn.disabled = !connected;
 };
 
 const applyVolumeToPlayers = () => {
@@ -179,6 +178,10 @@ const onSliderInput = (input) => {
   setVolumeLevel(level, { fromUser: true });
 };
 
+const focusPrimaryMute = () => {
+  muteBtns[0]?.focus({ preventScroll: true });
+};
+
 const wireSlider = (input) => {
   if (!input) return;
   input.addEventListener("input", () => {
@@ -188,15 +191,17 @@ const wireSlider = (input) => {
   input.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closePopover();
-      muteBtn?.focus({ preventScroll: true });
+      focusPrimaryMute();
     }
   });
 };
 
 const onDocumentPointerDown = (event) => {
-  if (!popoverOpen || !rootEl) return;
+  if (!popoverOpen) return;
+  const primaryRoot = rootEls[0] ?? null;
+  if (!primaryRoot) return;
   const target = event.target;
-  if (target instanceof Node && rootEl.contains(target)) return;
+  if (target instanceof Node && primaryRoot.contains(target)) return;
   closePopover();
 };
 
@@ -210,40 +215,63 @@ const loadVolumeState = () => {
   preMuteVolume = volumeLevel > 0 ? volumeLevel : DEFAULT_VOLUME;
 };
 
+const registerVolumeRoot = (root, { primary = false } = {}) => {
+  if (!root || rootEls.includes(root)) return;
+  rootEls.push(root);
+
+  const muteBtn = root.querySelector(".volume-control__mute");
+  if (muteBtn) {
+    muteBtns.push(muteBtn);
+    muteBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleMute();
+    });
+  }
+
+  const slider =
+    root.querySelector("#volumeSlider") ??
+    root.querySelector("#theaterVolumeSlider") ??
+    root.querySelector(".volume-control__slider:not(.volume-control__slider--popover)");
+  if (slider) {
+    sliderEls.push(slider);
+    wireSlider(slider);
+  }
+
+  const iconMuteX = root.querySelector(".volume-control__icon--mute-x");
+  if (iconMuteX) iconMuteXs.push(iconMuteX);
+
+  if (primary) {
+    popoverSliderEl = root.querySelector("#volumeSliderPopover");
+    popoverEl = root.querySelector(".volume-control__popover");
+    wireSlider(popoverSliderEl);
+    root.addEventListener("click", (event) => {
+      if (!popoverMq?.matches) return;
+      if (muteBtn?.contains(event.target)) return;
+      if (popoverEl && !popoverEl.hidden && popoverEl.contains(event.target)) return;
+      togglePopover();
+    });
+  }
+};
+
 const initVolumeControl = (options = {}) => {
   hooks = {
     getSpotifyPlayer: options.getSpotifyPlayer,
     getSoundCloudWidget: options.getSoundCloudWidget,
     isConnected: options.isConnected
   };
-  rootEl = options.root ?? document.querySelector(".app-header__volume");
-  if (!rootEl) return;
 
-  muteBtn = rootEl.querySelector(".volume-control__mute");
-  sliderEl = rootEl.querySelector("#volumeSlider") ?? rootEl.querySelector(".volume-control__slider");
-  popoverSliderEl = rootEl.querySelector("#volumeSliderPopover");
-  popoverEl = rootEl.querySelector(".volume-control__popover");
-  iconMuteX = rootEl.querySelector(".volume-control__icon--mute-x");
+  const primaryRoot = options.root ?? document.querySelector(".app-header__volume");
+  const theaterRoot =
+    options.theaterRoot ?? document.querySelector(".now-playing-theater-volume");
+  if (!primaryRoot && !theaterRoot) return;
+
+  if (primaryRoot) registerVolumeRoot(primaryRoot, { primary: true });
+  if (theaterRoot) registerVolumeRoot(theaterRoot);
 
   loadVolumeState();
   syncSliderInputs();
   syncMuteUi();
   syncDisabledUi();
-
-  wireSlider(sliderEl);
-  wireSlider(popoverSliderEl);
-
-  muteBtn?.addEventListener("click", (event) => {
-    event.stopPropagation();
-    toggleMute();
-  });
-
-  rootEl.addEventListener("click", (event) => {
-    if (!popoverMq?.matches) return;
-    if (muteBtn?.contains(event.target)) return;
-    if (popoverEl && !popoverEl.hidden && popoverEl.contains(event.target)) return;
-    togglePopover();
-  });
 
   popoverMq = window.matchMedia(POPOVER_MQ);
   const onMqChange = () => {

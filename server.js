@@ -203,7 +203,6 @@ function mockSoundCloudLibrary() {
     likes: {
       id: SOUNDCLOUD_LIKES_ID,
       name: "Likes",
-      trackCount: tracks.length,
       kind: "likes",
       provider: "soundcloud"
     },
@@ -212,7 +211,6 @@ function mockSoundCloudLibrary() {
         {
           id: SOUNDCLOUD_DEMO_PLAYLIST_ID,
           name: "Demo playlist (OAuth Connect shows your real SoundCloud library)",
-          trackCount: tracks.length,
           kind: "owned",
           provider: "soundcloud"
         }
@@ -229,20 +227,13 @@ function mockSoundCloudLibrary() {
 const SOUNDCLOUD_ENRICH_COUNTS_MAX = 60;
 
 function mockSoundCloudEnrichCounts(playlistRefs) {
-  const lib = mockSoundCloudLibrary();
-  const byId = new Map();
-  for (const pl of lib.owned.items) {
-    byId.set(pl.id, pl.trackCount);
-  }
+  const demoTrackCount = providers.soundcloud.tracks.length;
   return {
-    playlists: (playlistRefs || []).slice(0, SOUNDCLOUD_ENRICH_COUNTS_MAX).map((ref) => {
-      const id = String(ref.id);
-      return {
-        id,
-        trackCount: byId.has(id) ? byId.get(id) : lib.likes.trackCount,
-        trackCountPending: false
-      };
-    })
+    playlists: (playlistRefs || []).slice(0, SOUNDCLOUD_ENRICH_COUNTS_MAX).map((ref) => ({
+      id: String(ref.id),
+      trackCount: demoTrackCount,
+      trackCountPending: false
+    }))
   };
 }
 
@@ -782,6 +773,8 @@ app.get("/api/soundcloud/playlists", async (req, res) => {
   const likedOffset = Math.max(Number(req.query.likedOffset || 0) || 0, 0);
   const enrichTrackCounts =
     req.query.enrichCounts === "true" || req.query.enrichCounts === "1";
+  const fetchSongCounts =
+    req.query.fetchSongCounts === "true" || req.query.fetchSongCounts === "1";
 
   const tokenResult = await getSoundCloudAccessToken({ sessions, persist });
   if (!tokenResult.ok) {
@@ -804,7 +797,8 @@ app.get("/api/soundcloud/playlists", async (req, res) => {
     ownedOffset,
     likedLimit,
     likedOffset,
-    enrichTrackCounts
+    enrichTrackCounts,
+    fetchSongCounts
   });
 
   if (!liveResult.ok && liveResult.status === 401) {
@@ -821,7 +815,8 @@ app.get("/api/soundcloud/playlists", async (req, res) => {
       ownedOffset,
       likedLimit,
       likedOffset,
-      enrichTrackCounts
+      enrichTrackCounts,
+      fetchSongCounts
     });
   }
 

@@ -250,7 +250,9 @@ test("soundCloudListLibrary merges likes, owned, and liked playlists", async () 
       ownedLimit: 30,
       ownedOffset: 0,
       likedLimit: 30,
-      likedOffset: 0
+      likedOffset: 0,
+      fetchSongCounts: true,
+      enrichTrackCounts: false
     });
     assert.equal(r.ok, true);
     assert.equal(r.likes.id, SOUNDCLOUD_LIKES_ID);
@@ -328,6 +330,51 @@ test("soundCloudListLibrary enriches zero track_count from playlist metadata", a
   }
 });
 
+test("soundCloudListLibrary with fetchSongCounts false skips likes track pagination", async () => {
+  const originalFetch = global.fetch;
+  const fetchUrls = [];
+  global.fetch = async (url) => {
+    fetchUrls.push(String(url));
+    const u = String(url);
+    if (u.includes("/me/playlists") && !u.includes("/me/likes/playlists")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          collection: [{ id: 10, title: "Owned", track_count: 2, user: { username: "me" } }],
+          next_href: null
+        })
+      };
+    }
+    if (u.includes("/me/likes/playlists")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ collection: [], next_href: null })
+      };
+    }
+    throw new Error(`unexpected fetch: ${u}`);
+  };
+  try {
+    const r = await soundCloudListLibrary({
+      accessToken: "tok",
+      ownedLimit: 30,
+      ownedOffset: 0,
+      likedLimit: 30,
+      likedOffset: 0,
+      enrichTrackCounts: false,
+      fetchSongCounts: false
+    });
+    assert.equal(r.ok, true);
+    assert.equal(fetchUrls.some((u) => u.includes("/me/likes/tracks")), false);
+    assert.equal(r.likes.id, SOUNDCLOUD_LIKES_ID);
+    assert.equal(r.likes.trackCount, undefined);
+    assert.equal(r.owned.items[0].trackCount, undefined);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test("soundCloudListLibrary with enrichTrackCounts false skips playlist metadata fetches", async () => {
   const originalFetch = global.fetch;
   const fetchUrls = [];
@@ -378,7 +425,8 @@ test("soundCloudListLibrary with enrichTrackCounts false skips playlist metadata
       ownedOffset: 0,
       likedLimit: 30,
       likedOffset: 0,
-      enrichTrackCounts: false
+      enrichTrackCounts: false,
+      fetchSongCounts: true
     });
     assert.equal(r.ok, true);
     assert.equal(
@@ -518,7 +566,15 @@ test("POST /api/soundcloud/playlists/enrich-counts returns demo counts when simu
   assert.equal(res.body.playlists.length, 1);
   assert.equal(res.body.playlists[0].id, "demo-playlist-sc");
   assert.equal(res.body.playlists[0].trackCountPending, false);
+  assert.equal(res.body.playlists[0].trackCountPending, false);
   assert.ok(res.body.playlists[0].trackCount >= 1);
+});
+
+test("GET /api/soundcloud/playlists does not fetch likes track pages by default", async () => {
+  await request(app).post("/api/auth/soundcloud/connect").expect(200);
+  const res = await request(app).get("/api/soundcloud/playlists").expect(200);
+  assert.equal(res.body.demoMode, true);
+  assert.equal(res.body.likes.trackCount, undefined);
 });
 
 test("GET /api/soundcloud/playlists/:id/tracks demo vs unknown id", async () => {

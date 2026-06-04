@@ -9,6 +9,7 @@ const {
   normalizePlaylistTrackRow,
   resolvePlaylistTrackCount,
   spotifyListCurrentUserPlaylists,
+  spotifyListFollowedPlaylists,
   spotifyListPlaylistTracks,
   spotifyFetchLikedSongsSummary
 } = require("../lib/spotifyWebApi");
@@ -174,6 +175,74 @@ test("spotifyListCurrentUserPlaylists returns only playlists owned by the curren
     assert.equal(r.nextOffset, null);
     assert.equal(sessions.spotify.userId, "u1");
     assert.equal(sessions.spotify.displayName, "Christopher So");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("spotifyListFollowedPlaylists returns only playlists not owned by the current user", async () => {
+  const originalFetch = global.fetch;
+  const exp = nowSec() + 7200;
+  const sessions = { spotify: { accessToken: "access", expiresAt: exp } };
+  const persist = () => {};
+  global.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes("/v1/me/playlists")) {
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({
+          items: [
+            {
+              id: "mine",
+              name: "Mine",
+              public: false,
+              owner: { id: "u1", display_name: "Me" },
+              items: { total: 3 }
+            },
+            {
+              id: "followed",
+              name: "Followed",
+              public: true,
+              owner: { id: "other", display_name: "Other" },
+              tracks: { total: 10 }
+            }
+          ],
+          next: null
+        }),
+        text: async () => ""
+      };
+    }
+    if (u.endsWith("/v1/me") || u.includes("/v1/me?")) {
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({ id: "u1", display_name: "Christopher So" }),
+        text: async () => ""
+      };
+    }
+    if (u.includes("/playlists/followed/items")) {
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({ total: 10, items: [], limit: 1, offset: 0, next: null }),
+        text: async () => ""
+      };
+    }
+    throw new Error(`unexpected fetch: ${u}`);
+  };
+  try {
+    const r = await spotifyListFollowedPlaylists({ sessions, persist, limit: 50, offset: 0 });
+    assert.equal(r.ok, true);
+    assert.equal(r.items.length, 1);
+    assert.equal(r.items[0].id, "followed");
+    assert.equal(r.items[0].kind, "liked_playlist");
+    assert.equal(r.items[0].ownerId, "other");
+    assert.equal(r.items[0].trackCount, 10);
+    assert.equal(r.nextOffset, null);
   } finally {
     global.fetch = originalFetch;
   }
@@ -380,6 +449,8 @@ test("GET /api/spotify/playlists returns demo catalog when simulated connect", a
   assert.ok(Array.isArray(res.body.items));
   assert.equal(res.body.items[0].id, "demo-playlist");
   assert.equal(res.body.nextOffset, null);
+  assert.ok(Array.isArray(res.body.likedPlaylists.items));
+  assert.equal(res.body.likedPlaylists.nextOffset, null);
 });
 
 test("GET /api/spotify/playlists/:id/tracks demo vs unknown id", async () => {

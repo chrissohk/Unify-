@@ -11,7 +11,10 @@ const {
   normalizePlaylistTrackRow,
   soundCloudFetchLikesSummary,
   soundCloudListLibrary,
-  soundCloudListPlaylistTracksById
+  soundCloudListPlaylistTracksById,
+  soundCloudEnrichPlaylistTrackCountsByRefs,
+  stripPlaylistSummaryInternals,
+  summaryNeedsTrackCountEnrichment
 } = require("../lib/soundcloudWebApi");
 
 function mockLikedTrack(id) {
@@ -86,6 +89,22 @@ test("normalizePlaylistSummary marks missing count when track_count absent", () 
   );
   assert.equal(out.trackCount, 0);
   assert.equal(out._missingTrackCount, true);
+});
+
+test("stripPlaylistSummaryInternals defers pending counts when deferCounts is true", () => {
+  const raw = normalizePlaylistSummary({ id: 99, title: "No count", tracks: [1, 2, 3] }, { kind: "owned" });
+  const stripped = stripPlaylistSummaryInternals(raw, { deferCounts: true });
+  assert.equal(stripped.trackCount, null);
+  assert.equal(stripped.trackCountPending, true);
+  assert.equal(stripped._missingTrackCount, undefined);
+});
+
+test("summaryNeedsTrackCountEnrichment matches enrich filter", () => {
+  assert.equal(
+    summaryNeedsTrackCountEnrichment({ id: "1", _missingTrackCount: true, trackCount: 0 }),
+    true
+  );
+  assert.equal(summaryNeedsTrackCountEnrichment({ id: "1", trackCount: 5 }), false);
 });
 
 test("soundCloudFetchLikesSummary uses total_count when API provides it", async () => {
@@ -298,11 +317,103 @@ test("soundCloudListLibrary enriches zero track_count from playlist metadata", a
       ownedLimit: 30,
       ownedOffset: 0,
       likedLimit: 30,
-      likedOffset: 0
+      likedOffset: 0,
+      enrichTrackCounts: true
     });
     assert.equal(r.ok, true);
     assert.equal(r.owned.items[0].trackCount, 14);
     assert.equal(r.owned.items[0]._missingTrackCount, undefined);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("soundCloudListLibrary with enrichTrackCounts false skips playlist metadata fetches", async () => {
+  const originalFetch = global.fetch;
+  const fetchUrls = [];
+  global.fetch = async (url) => {
+    fetchUrls.push(String(url));
+    const u = String(url);
+    if (u.includes("/me/likes/tracks")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          collection: [],
+          total_count: 3,
+          next_href: null
+        })
+      };
+    }
+    if (u.includes("/me/playlists") && !u.includes("/me/likes/playlists")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          collection: [
+            {
+              id: 10,
+              title: "Owned",
+              track_count: 0,
+              user: { username: "me" }
+            }
+          ],
+          next_href: null
+        })
+      };
+    }
+    if (u.includes("/me/likes/playlists")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ collection: [], next_href: null })
+      };
+    }
+    throw new Error(`unexpected fetch: ${u}`);
+  };
+  try {
+    const r = await soundCloudListLibrary({
+      accessToken: "tok",
+      ownedLimit: 30,
+      ownedOffset: 0,
+      likedLimit: 30,
+      likedOffset: 0,
+      enrichTrackCounts: false
+    });
+    assert.equal(r.ok, true);
+    assert.equal(
+      fetchUrls.some((u) => /\/playlists\/10(\?|$)/.test(u) && !u.includes("/tracks")),
+      false
+    );
+    assert.equal(r.owned.items[0].trackCount, null);
+    assert.equal(r.owned.items[0].trackCountPending, true);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("soundCloudEnrichPlaylistTrackCountsByRefs fills counts from metadata", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async (url) => {
+    const u = String(url);
+    if (/\/playlists\/10(\?|$)/.test(u) && !u.includes("/tracks")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 10, title: "Owned", track_count: 9 })
+      };
+    }
+    throw new Error(`unexpected fetch: ${u}`);
+  };
+  try {
+    const r = await soundCloudEnrichPlaylistTrackCountsByRefs({
+      accessToken: "tok",
+      playlists: [{ id: "10" }]
+    });
+    assert.equal(r.ok, true);
+    assert.equal(r.playlists.length, 1);
+    assert.equal(r.playlists[0].trackCount, 9);
+    assert.equal(r.playlists[0].trackCountPending, false);
   } finally {
     global.fetch = originalFetch;
   }
@@ -395,6 +506,19 @@ test("GET /api/soundcloud/playlists returns demo library when simulated connect"
   assert.equal(res.body.likes.id, SOUNDCLOUD_LIKES_ID);
   assert.ok(Array.isArray(res.body.owned.items));
   assert.equal(res.body.owned.items[0].id, "demo-playlist-sc");
+});
+
+test("POST /api/soundcloud/playlists/enrich-counts returns demo counts when simulated connect", async () => {
+  await request(app).post("/api/auth/soundcloud/connect").expect(200);
+  const res = await request(app)
+    .post("/api/soundcloud/playlists/enrich-counts")
+    .send({ playlists: [{ id: "demo-playlist-sc" }] })
+    .expect(200);
+  assert.equal(res.body.demoMode, true);
+  assert.equal(res.body.playlists.length, 1);
+  assert.equal(res.body.playlists[0].id, "demo-playlist-sc");
+  assert.equal(res.body.playlists[0].trackCountPending, false);
+  assert.ok(res.body.playlists[0].trackCount >= 1);
 });
 
 test("GET /api/soundcloud/playlists/:id/tracks demo vs unknown id", async () => {

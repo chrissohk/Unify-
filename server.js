@@ -29,6 +29,7 @@ const {
   enrichSpotifyTracksWithImages,
   spotifySearchTracks,
   spotifyListCurrentUserPlaylists,
+  spotifyListFollowedPlaylists,
   spotifyListPlaylistTracks,
   spotifyFetchLikedSongsSummary,
   buildSpotifyLikedSongsSummary,
@@ -42,6 +43,7 @@ const {
   soundCloudSearchTracks,
   soundCloudListLibrary,
   soundCloudListPlaylistTracksById,
+  soundCloudEnrichPlaylistTrackCountsByRefs,
   SOUNDCLOUD_LIKES_ID
 } = require("./lib/soundcloudWebApi");
 const { resolveProviderHealth } = require("./lib/providerHealth");
@@ -221,6 +223,26 @@ function mockSoundCloudLibrary() {
       items: [],
       nextOffset: null
     }
+  };
+}
+
+const SOUNDCLOUD_ENRICH_COUNTS_MAX = 60;
+
+function mockSoundCloudEnrichCounts(playlistRefs) {
+  const lib = mockSoundCloudLibrary();
+  const byId = new Map();
+  for (const pl of lib.owned.items) {
+    byId.set(pl.id, pl.trackCount);
+  }
+  return {
+    playlists: (playlistRefs || []).slice(0, SOUNDCLOUD_ENRICH_COUNTS_MAX).map((ref) => {
+      const id = String(ref.id);
+      return {
+        id,
+        trackCount: byId.has(id) ? byId.get(id) : lib.likes.trackCount,
+        trackCountPending: false
+      };
+    })
   };
 }
 
@@ -556,6 +578,8 @@ app.get("/api/spotify/playlists", async (req, res) => {
 
   const limit = Math.min(Number(req.query.limit || 50) || 50, 50);
   const offset = Math.max(Number(req.query.offset || 0) || 0, 0);
+  const likedLimit = Math.min(Number(req.query.likedLimit || 30) || 30, 50);
+  const likedOffset = Math.max(Number(req.query.likedOffset || 0) || 0, 0);
 
   const tokenResult = await getSpotifyAccessToken({ sessions, persist });
   if (!tokenResult.ok) {
@@ -564,6 +588,7 @@ app.get("/api/spotify/playlists", async (req, res) => {
         likedSongs: mockSpotifyLikedSongsSummary(),
         items: mockSpotifyPlaylistSummaries(),
         nextOffset: null,
+        likedPlaylists: { items: [], nextOffset: null },
         demoMode: true
       });
     }
@@ -596,10 +621,17 @@ app.get("/api/spotify/playlists", async (req, res) => {
     limit,
     offset
   });
+  let followedResult = await spotifyListFollowedPlaylists({
+    sessions,
+    persist,
+    limit: likedLimit,
+    offset: likedOffset
+  });
 
   if (
     (!likedResult.ok && likedResult.status === 401) ||
-    (!liveResult.ok && liveResult.status === 401)
+    (!liveResult.ok && liveResult.status === 401) ||
+    (!followedResult.ok && followedResult.status === 401)
   ) {
     const refreshResult = await getSpotifyAccessToken({ sessions, persist, forceRefresh: true });
     if (!refreshResult.ok) {
@@ -619,10 +651,21 @@ app.get("/api/spotify/playlists", async (req, res) => {
         offset
       });
     }
+    if (!followedResult.ok && followedResult.status === 401) {
+      followedResult = await spotifyListFollowedPlaylists({
+        sessions,
+        persist,
+        limit: likedLimit,
+        offset: likedOffset
+      });
+    }
   }
 
   if (!liveResult.ok) {
     return mapSpotifyBrowseError(res, liveResult, "SPOTIFY_PLAYLISTS_FAILED");
+  }
+  if (!followedResult.ok) {
+    return mapSpotifyBrowseError(res, followedResult, "SPOTIFY_PLAYLISTS_FAILED");
   }
 
   const profile = {
@@ -634,6 +677,10 @@ app.get("/api/spotify/playlists", async (req, res) => {
   const body = {
     items: ownedItems,
     nextOffset: liveResult.nextOffset,
+    likedPlaylists: {
+      items: followedResult.items || [],
+      nextOffset: followedResult.nextOffset
+    },
     demoMode: false,
     ownedOnly: true
   };
@@ -733,6 +780,8 @@ app.get("/api/soundcloud/playlists", async (req, res) => {
   const ownedOffset = Math.max(Number(req.query.ownedOffset || 0) || 0, 0);
   const likedLimit = Math.min(Number(req.query.likedLimit || 30) || 30, 50);
   const likedOffset = Math.max(Number(req.query.likedOffset || 0) || 0, 0);
+  const enrichTrackCounts =
+    req.query.enrichCounts === "true" || req.query.enrichCounts === "1";
 
   const tokenResult = await getSoundCloudAccessToken({ sessions, persist });
   if (!tokenResult.ok) {
@@ -754,7 +803,8 @@ app.get("/api/soundcloud/playlists", async (req, res) => {
     ownedLimit,
     ownedOffset,
     likedLimit,
-    likedOffset
+    likedOffset,
+    enrichTrackCounts
   });
 
   if (!liveResult.ok && liveResult.status === 401) {
@@ -770,7 +820,8 @@ app.get("/api/soundcloud/playlists", async (req, res) => {
       ownedLimit,
       ownedOffset,
       likedLimit,
-      likedOffset
+      likedOffset,
+      enrichTrackCounts
     });
   }
 
@@ -782,6 +833,63 @@ app.get("/api/soundcloud/playlists", async (req, res) => {
     likes: liveResult.likes,
     owned: liveResult.owned,
     likedPlaylists: liveResult.likedPlaylists,
+    demoMode: false
+  });
+});
+
+app.post("/api/soundcloud/playlists/enrich-counts", async (req, res) => {
+  const connectCheck = ensureConnected("soundcloud");
+  if (!connectCheck.ok) {
+    return res.status(401).json({ error: connectCheck.message, code: connectCheck.code });
+  }
+
+  const rawPlaylists = Array.isArray(req.body?.playlists) ? req.body.playlists : [];
+  const playlists = rawPlaylists.slice(0, SOUNDCLOUD_ENRICH_COUNTS_MAX).map((ref) => ({
+    id: ref?.id,
+    secretToken:
+      typeof ref?.secretToken === "string" && ref.secretToken.trim() ? ref.secretToken.trim() : undefined
+  }));
+
+  const tokenResult = await getSoundCloudAccessToken({ sessions, persist });
+  if (!tokenResult.ok) {
+    if (soundCloudTokenAllowsMockCatalog(tokenResult)) {
+      return res.json({ ...mockSoundCloudEnrichCounts(playlists), demoMode: true });
+    }
+    const body = {
+      error: "soundcloud token is unavailable",
+      code: tokenResult.code || "SOUNDCLOUD_TOKEN_UNAVAILABLE"
+    };
+    if (tokenResult.message) body.hint = tokenResult.message;
+    const d = truncateSpotifyDetails(tokenResult.details);
+    if (d) body.details = d;
+    return res.status(401).json(body);
+  }
+
+  let liveResult = await soundCloudEnrichPlaylistTrackCountsByRefs({
+    accessToken: tokenResult.accessToken,
+    playlists
+  });
+
+  if (!liveResult.ok && liveResult.status === 401) {
+    const refreshResult = await getSoundCloudAccessToken({ sessions, persist, forceRefresh: true });
+    if (!refreshResult.ok) {
+      return res.status(401).json({
+        error: "soundcloud token refresh failed",
+        code: refreshResult.code || "SOUNDCLOUD_REFRESH_FAILED"
+      });
+    }
+    liveResult = await soundCloudEnrichPlaylistTrackCountsByRefs({
+      accessToken: refreshResult.accessToken,
+      playlists
+    });
+  }
+
+  if (!liveResult.ok) {
+    return mapSoundCloudBrowseError(res, liveResult, "SOUNDCLOUD_PLAYLIST_COUNTS_FAILED");
+  }
+
+  return res.json({
+    playlists: liveResult.playlists,
     demoMode: false
   });
 });

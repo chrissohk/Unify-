@@ -18,12 +18,9 @@ If you have already completed the Quick start once, you do **not** need to clone
 2. Go to the **same folder** where you ran setup before (it should contain `package.json`, `.env`, and usually `node_modules`).
 
    **Windows (PowerShell)** — use the path that matches your machine:
-
-   ```powershell
-   cd "$env:USERPROFILE\OneDrive\Desktop\Soundcloud and Spotify Multiplayer"
    ```
 
-   or, if you cloned via Git:
+   If you cloned via Git:
 
    ```powershell
    cd "$env:USERPROFILE\OneDrive\Desktop\Unify-"
@@ -35,7 +32,9 @@ If you have already completed the Quick start once, you do **not** need to clone
    cd ~/Desktop/Unify-
    ```
 
-3. Start the server:
+3. Run "Git pull" if there is an update on the codebase. 
+
+4. Start the server:
 
    ```bash
    npm start
@@ -448,6 +447,7 @@ The sections below describe features, architecture, testing, and deployment in m
 - **SoundCloud**: with OAuth connected (`SOUNDCLOUD_*` in `.env`), search hits the live SoundCloud API (`/tracks`); otherwise search uses the built-in mock catalog (same as offline demos)
 - **SoundCloud library**: on the SoundCloud tab, browse **Likes**, **your playlists**, and **liked playlists** (OAuth required for live data; simulated Connect shows a demo library)
 - **Spotify**: with OAuth connected, search uses the Spotify Web API; otherwise mock catalog
+- **Spotify library**: on the Spotify tab, browse **Liked Songs**, **your playlists**, and **liked playlists** (followed playlists you do not own; OAuth required for live data)
 - **SQLite persistence** for queue + session flags (see below); survives normal server restarts when not in test mode
 - Reorder up-next tracks (`Up`/`Down`); the **Now Playing** panel shows the current track only (not duplicated in the list below)
 - **Up next** list shows only tracks after the current one (heading only when the list is empty)

@@ -33,6 +33,7 @@ const {
   spotifyListPlaylistTracks,
   spotifyFetchLikedSongsSummary,
   buildSpotifyLikedSongsSummary,
+  buildSpotifyLikedSongsSummaryWithoutCount,
   SPOTIFY_LIKED_SONGS_ID,
   isPlaylistOwnedByUser,
   spotifyStartTrack,
@@ -136,7 +137,7 @@ function mockCatalogSearch(providerKey, query) {
 const SPOTIFY_DEMO_PLAYLIST_ID = "demo-playlist";
 
 function mockSpotifyLikedSongsSummary() {
-  return buildSpotifyLikedSongsSummary(providers.spotify.tracks.length);
+  return buildSpotifyLikedSongsSummaryWithoutCount();
 }
 
 function spotifyLikedSongsErrorHint(likedResult) {
@@ -156,7 +157,6 @@ function mockSpotifyPlaylistSummaries() {
       id: SPOTIFY_DEMO_PLAYLIST_ID,
       name: "Demo playlist (OAuth Connect shows your real Spotify playlists)",
       ownerDisplayName: "MVP",
-      trackCount: providers.spotify.tracks.length,
       public: false,
       provider: "spotify"
     }
@@ -571,6 +571,11 @@ app.get("/api/spotify/playlists", async (req, res) => {
   const offset = Math.max(Number(req.query.offset || 0) || 0, 0);
   const likedLimit = Math.min(Number(req.query.likedLimit || 30) || 30, 50);
   const likedOffset = Math.max(Number(req.query.likedOffset || 0) || 0, 0);
+  const enrichTrackCounts =
+    req.query.enrichCounts === "true" || req.query.enrichCounts === "1";
+  const fetchSongCounts =
+    req.query.fetchSongCounts === "true" || req.query.fetchSongCounts === "1";
+  const listOpts = { enrichTrackCounts, omitSongCounts: !fetchSongCounts };
 
   const tokenResult = await getSpotifyAccessToken({ sessions, persist });
   if (!tokenResult.ok) {
@@ -605,19 +610,45 @@ app.get("/api/spotify/playlists", async (req, res) => {
     return res.status(401).json(body);
   }
 
-  let likedResult = await spotifyFetchLikedSongsSummary({ sessions, persist });
-  let liveResult = await spotifyListCurrentUserPlaylists({
-    sessions,
-    persist,
-    limit,
-    offset
-  });
-  let followedResult = await spotifyListFollowedPlaylists({
-    sessions,
-    persist,
-    limit: likedLimit,
-    offset: likedOffset
-  });
+  const profileResult = await getSpotifyCurrentUserProfile({ sessions, persist, forceRefresh: false });
+  const profile = profileResult.ok
+    ? { id: profileResult.userId, displayName: profileResult.displayName || "" }
+    : undefined;
+
+  const likedPromise = fetchSongCounts
+    ? spotifyFetchLikedSongsSummary({ sessions, persist })
+    : Promise.resolve({ ok: true, likedSongs: buildSpotifyLikedSongsSummaryWithoutCount() });
+
+  let likedResult;
+  let liveResult;
+  let followedResult;
+  try {
+    [likedResult, liveResult, followedResult] = await Promise.all([
+      likedPromise,
+      spotifyListCurrentUserPlaylists({
+        sessions,
+        persist,
+        limit,
+        offset,
+        profile,
+        ...listOpts
+      }),
+      spotifyListFollowedPlaylists({
+        sessions,
+        persist,
+        limit: likedLimit,
+        offset: likedOffset,
+        profile,
+        ...listOpts
+      })
+    ]);
+  } catch (err) {
+    return res.status(500).json({
+      error: "spotify playlists request failed",
+      code: "SPOTIFY_PLAYLISTS_FAILED",
+      details: err?.message
+    });
+  }
 
   if (
     (!likedResult.ok && likedResult.status === 401) ||
@@ -631,25 +662,33 @@ app.get("/api/spotify/playlists", async (req, res) => {
         code: refreshResult.code || "SPOTIFY_REFRESH_FAILED"
       });
     }
-    if (!likedResult.ok && likedResult.status === 401) {
-      likedResult = await spotifyFetchLikedSongsSummary({ sessions, persist });
-    }
-    if (!liveResult.ok && liveResult.status === 401) {
-      liveResult = await spotifyListCurrentUserPlaylists({
-        sessions,
-        persist,
-        limit,
-        offset
-      });
-    }
-    if (!followedResult.ok && followedResult.status === 401) {
-      followedResult = await spotifyListFollowedPlaylists({
-        sessions,
-        persist,
-        limit: likedLimit,
-        offset: likedOffset
-      });
-    }
+    const retryLiked = fetchSongCounts
+      ? spotifyFetchLikedSongsSummary({ sessions, persist })
+      : Promise.resolve({ ok: true, likedSongs: buildSpotifyLikedSongsSummaryWithoutCount() });
+    const retryTasks = [
+      !likedResult.ok && likedResult.status === 401 ? retryLiked : Promise.resolve(likedResult),
+      !liveResult.ok && liveResult.status === 401
+        ? spotifyListCurrentUserPlaylists({
+            sessions,
+            persist,
+            limit,
+            offset,
+            profile,
+            ...listOpts
+          })
+        : Promise.resolve(liveResult),
+      !followedResult.ok && followedResult.status === 401
+        ? spotifyListFollowedPlaylists({
+            sessions,
+            persist,
+            limit: likedLimit,
+            offset: likedOffset,
+            profile,
+            ...listOpts
+          })
+        : Promise.resolve(followedResult)
+    ];
+    [likedResult, liveResult, followedResult] = await Promise.all(retryTasks);
   }
 
   if (!liveResult.ok) {
@@ -659,11 +698,13 @@ app.get("/api/spotify/playlists", async (req, res) => {
     return mapSpotifyBrowseError(res, followedResult, "SPOTIFY_PLAYLISTS_FAILED");
   }
 
-  const profile = {
+  const ownerProfile = profile || {
     id: sessions.spotify.userId || "",
     displayName: sessions.spotify.displayName || ""
   };
-  const ownedItems = (liveResult.items || []).filter((item) => isPlaylistOwnedByUser(item, profile));
+  const ownedItems = (liveResult.items || []).filter((item) =>
+    isPlaylistOwnedByUser(item, ownerProfile)
+  );
 
   const body = {
     items: ownedItems,
@@ -678,7 +719,9 @@ app.get("/api/spotify/playlists", async (req, res) => {
   if (likedResult.ok && likedResult.likedSongs) {
     body.likedSongs = likedResult.likedSongs;
   } else {
-    body.likedSongs = buildSpotifyLikedSongsSummary(0);
+    body.likedSongs = fetchSongCounts
+      ? buildSpotifyLikedSongsSummary(0)
+      : buildSpotifyLikedSongsSummaryWithoutCount();
     body.likedSongsUnavailable = true;
     const hint = spotifyLikedSongsErrorHint(likedResult);
     body.likedSongsError = {

@@ -446,11 +446,74 @@ test("GET /api/spotify/playlists returns demo catalog when simulated connect", a
   assert.equal(res.body.demoMode, true);
   assert.equal(res.body.likedSongs.id, SPOTIFY_LIKED_SONGS_ID);
   assert.equal(res.body.likedSongs.name, "Liked Songs");
+  assert.equal(res.body.likedSongs.trackCount, undefined);
   assert.ok(Array.isArray(res.body.items));
   assert.equal(res.body.items[0].id, "demo-playlist");
+  assert.equal(res.body.items[0].trackCount, undefined);
   assert.equal(res.body.nextOffset, null);
   assert.ok(Array.isArray(res.body.likedPlaylists.items));
   assert.equal(res.body.likedPlaylists.nextOffset, null);
+});
+
+test("spotifyListCurrentUserPlaylists with enrichTrackCounts false omits track counts", async () => {
+  const originalFetch = global.fetch;
+  const exp = nowSec() + 7200;
+  const sessions = { spotify: { accessToken: "access", expiresAt: exp } };
+  const persist = () => {};
+  const fetchUrls = [];
+  global.fetch = async (url) => {
+    fetchUrls.push(String(url));
+    const u = String(url);
+    if (u.includes("/v1/me/playlists")) {
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({
+          items: [
+            {
+              id: "mine",
+              name: "Mine",
+              public: false,
+              owner: { id: "u1", display_name: "Me" },
+              items: { total: 3 }
+            }
+          ],
+          next: null
+        }),
+        text: async () => ""
+      };
+    }
+    if (u.endsWith("/v1/me") || u.includes("/v1/me?")) {
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({ id: "u1", display_name: "Christopher So" }),
+        text: async () => ""
+      };
+    }
+    if (u.includes("/playlists/mine/items")) {
+      throw new Error("must not enrich playlist track counts when enrichTrackCounts is false");
+    }
+    throw new Error(`unexpected fetch: ${u}`);
+  };
+  try {
+    const r = await spotifyListCurrentUserPlaylists({
+      sessions,
+      persist,
+      limit: 50,
+      offset: 0,
+      enrichTrackCounts: false,
+      omitSongCounts: true
+    });
+    assert.equal(r.ok, true);
+    assert.equal(r.items.length, 1);
+    assert.equal(r.items[0].trackCount, undefined);
+    assert.equal(fetchUrls.some((u) => u.includes("/playlists/mine/items")), false);
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
 
 test("GET /api/spotify/playlists/:id/tracks demo vs unknown id", async () => {

@@ -2397,14 +2397,21 @@ li .actions {
 }
 
 .now-playing-theater-chrome {
-  display: none;
-}
-
-.now-playing-theater-toggle {
+  display: flex;
   position: absolute;
   right: 10px;
   bottom: 10px;
   z-index: 5;
+  align-items: center;
+  gap: 10px;
+}
+
+.now-playing-theater-volume {
+  display: none;
+}
+
+.now-playing-theater-toggle {
+  position: static;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2644,6 +2651,7 @@ body.now-playing-theater-open .now-playing-theater-toggle {
 }
 
 body.now-playing-theater-open .now-playing-theater-volume {
+  display: inline-flex;
   --volume-control-gap: 6px;
   --volume-mute-size: 32px;
   --volume-slider-width: 108px;

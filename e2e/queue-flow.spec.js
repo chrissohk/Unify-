@@ -140,7 +140,8 @@ test.describe("unified queue", () => {
     await expect(page.locator(".vinyl-hero")).toBeVisible();
     const meta = page.locator(".now-playing-layout__meta");
     await expect(meta).toHaveAttribute("aria-label", "Neon Skyline - Astra");
-    await expect(meta.locator(".now-playing-layout__title")).toHaveText("Neon Skyline");
+    await expect(page.getByTestId("now-playing-meta-ticker")).toBeVisible();
+    await expect(meta.locator(".now-playing-meta-ticker__text").first()).toHaveText("Neon Skyline");
     await expect(meta.locator(".now-playing-layout__artist")).toHaveText("Astra");
     await expect(page.getByTestId("theater-volume")).toBeVisible();
     await expect(page.getByTestId("theater-volume-slider")).toBeVisible();

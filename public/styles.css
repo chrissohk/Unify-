@@ -1053,15 +1053,23 @@ body:not(.is-loading) {
 }
 
 body.now-playing-theater-open .now-playing-meta-ticker {
-  display: none;
+  display: inline-flex;
 }
 
 body.now-playing-theater-open .now-playing-layout__title {
+  display: none;
+}
+
+body.now-playing-theater-open .now-playing-meta-ticker__track {
+  animation: tabTickerScroll var(--meta-ticker-duration, 16s) linear infinite;
+}
+
+body.now-playing-theater-open .now-playing-meta-ticker__text {
   font-family: var(--font-display);
   font-size: clamp(1.35rem, 4vw, 2rem);
   font-weight: 700;
   line-height: 1.1;
-  max-width: min(480px, 88vw);
+  color: var(--color-text);
 }
 
 body.now-playing-theater-open .now-playing-layout__artist {
@@ -1138,6 +1146,20 @@ body.now-playing-theater-open .now-playing-layout__artist {
   }
 
   .tab-now-playing-ticker__text--dup {
+    display: none;
+  }
+
+  body.now-playing-theater-open .now-playing-meta-ticker__track {
+    animation: none;
+  }
+
+  body.now-playing-theater-open .now-playing-meta-ticker__viewport {
+    mask-image: none;
+    -webkit-mask-image: none;
+    text-overflow: ellipsis;
+  }
+
+  body.now-playing-theater-open .now-playing-meta-ticker__text--dup {
     display: none;
   }
 
@@ -2398,10 +2420,8 @@ li .actions {
 
 .now-playing-theater-chrome {
   display: flex;
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  z-index: 5;
+  position: static;
+  flex-shrink: 0;
   align-items: center;
   gap: 10px;
 }
@@ -2893,9 +2913,30 @@ img.provider-badge-soundcloud {
   min-width: 0;
 }
 
-.now-playing-layout__progress,
-.now-playing-layout__controls {
+.now-playing-layout__progress {
   width: 100%;
+}
+
+.now-playing-layout__controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  width: 100%;
+  min-height: 56px;
+}
+
+.now-playing-layout__controls > .spotify-transport,
+.now-playing-layout__controls > .soundcloud-transport {
+  grid-column: 1;
+  justify-self: center;
+  margin-top: 0;
+  min-width: 0;
+}
+
+.now-playing-layout__controls > .now-playing-theater-chrome {
+  grid-column: 2;
+  justify-self: end;
 }
 
 .now-playing-layout__title,

@@ -53,6 +53,10 @@ const playerHost = document.getElementById("playerHost");
 const recentPlayedList = document.getElementById("recentPlayedList");
 const nowPlayingTheaterBtn = document.getElementById("nowPlayingTheaterBtn");
 const nowPlayingTheaterNext = document.getElementById("nowPlayingTheaterNext");
+const nowPlayingTheaterChrome =
+  document.querySelector(".now-playing-theater-chrome") ??
+  nowPlayingTheaterBtn?.closest?.(".now-playing-theater-chrome") ??
+  null;
 
 const tabNowPlayingTicker = tabNowPlaying?.querySelector?.(".tab-now-playing-ticker");
 const tabNowPlayingTickerText = tabNowPlaying?.querySelector?.(".tab-now-playing-ticker__text");
@@ -81,7 +85,8 @@ const applyNowPlayingTicker = ({
   textEl,
   textDupEl,
   viewportEl,
-  label
+  label,
+  forceScroll = false
 }) => {
   if (!tickerEl || !textEl || !textDupEl) return;
   const trimmed = String(label || "").trim();
@@ -92,7 +97,7 @@ const applyNowPlayingTicker = ({
     durationHost.style.setProperty(durationVar, `${seconds}s`);
   }
   tickerEl.classList.remove(staticClass);
-  if (!viewportEl) return;
+  if (forceScroll || !viewportEl) return;
   requestAnimationFrame(() => {
     const overflows = textEl.scrollWidth > viewportEl.clientWidth;
     tickerEl.classList.toggle(staticClass, !overflows);
@@ -179,14 +184,26 @@ const refreshNowPlayingMetaTicker = (panel, { title, artist } = {}) => {
 
   const resolvedTitle = title ?? titleFromDom;
   const resolvedArtist = artist ?? artistFromDom;
-  const label = formatNowPlayingLabel(resolvedTitle, resolvedArtist);
+  const titleText = String(resolvedTitle || "").trim() || "Unknown title";
+  const artistText = String(resolvedArtist || "").trim();
+  const label = formatNowPlayingLabel(titleText, artistText);
   meta.setAttribute("aria-label", label);
-  if (titleEl && title !== undefined) {
-    titleEl.textContent = String(resolvedTitle || "").trim() || "Unknown title";
-  }
-  if (artistEl && artist !== undefined) {
-    artistEl.textContent = String(resolvedArtist || "").trim();
-  }
+  if (titleEl) titleEl.textContent = titleText;
+  if (artistEl) artistEl.textContent = artistText;
+
+  if (!ticker || !textEl || !textDupEl) return;
+  ticker.setAttribute("title", titleText);
+  applyNowPlayingTicker({
+    durationHost: meta,
+    durationVar: "--meta-ticker-duration",
+    tickerEl: ticker,
+    staticClass: "now-playing-meta-ticker--static",
+    textEl,
+    textDupEl,
+    viewportEl,
+    label: titleText,
+    forceScroll: true
+  });
 };
 
 const renderNowPlayingMetaTicker = (panel, opts = {}) => {
@@ -421,6 +438,27 @@ const nowPlayingTheaterSvgEnter = () =>
 const nowPlayingTheaterSvgExit = () =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M8 4H4v4M16 4h4v4M8 20H4v-4M16 20h4v-4"/></svg>`;
 
+const mountNowPlayingTheaterChrome = () => {
+  if (!nowPlayingTheaterChrome) return;
+  const playing =
+    queueState.currentIndex >= 0 && queueState.currentIndex < queueState.queue.length;
+  const panel = getNowPlayingPanel();
+  const controls = panel?.querySelector?.(".now-playing-layout__controls");
+
+  if (playing && controls) {
+    if (nowPlayingTheaterChrome.parentElement !== controls) {
+      controls.appendChild(nowPlayingTheaterChrome);
+    }
+    nowPlayingTheaterChrome.hidden = false;
+    return;
+  }
+
+  if (nowPlayingRow && nowPlayingTheaterChrome.parentElement !== nowPlayingRow) {
+    nowPlayingRow.appendChild(nowPlayingTheaterChrome);
+  }
+  nowPlayingTheaterChrome.hidden = !playing;
+};
+
 const syncNowPlayingTheaterToggle = () => {
   const playing =
     queueState.currentIndex >= 0 && queueState.currentIndex < queueState.queue.length;
@@ -434,6 +472,7 @@ const syncNowPlayingTheaterToggle = () => {
   nowPlayingTheaterBtn.innerHTML = open
     ? nowPlayingTheaterSvgExit()
     : nowPlayingTheaterSvgEnter();
+  mountNowPlayingTheaterChrome();
   if (open) scheduleNowPlayingMetaTickerRefresh();
 };
 
@@ -501,6 +540,7 @@ const closeNowPlayingTheater = async () => {
   }
   if (panel) renderNowPlayingMetaTicker(panel);
   syncNowPlayingTheaterToggle();
+  mountNowPlayingTheaterChrome();
   if (document.fullscreenElement === nowPlayingRow) {
     try {
       await document.exitFullscreen();
@@ -606,6 +646,7 @@ const patchSpotifyNowPlayingPanel = (item) => {
   } else if (!reconnecting && reconnectHint) {
     reconnectHint.remove();
   }
+  mountNowPlayingTheaterChrome();
   return true;
 };
 
@@ -3281,6 +3322,7 @@ const renderNowPlaying = () => {
     }
     playerHost.innerHTML = "";
     lastNowPlayingEmbedKey = null;
+    mountNowPlayingTheaterChrome();
     return;
   }
   const item = queueState.queue[idx];
@@ -3302,6 +3344,7 @@ const renderNowPlaying = () => {
       title: spotifyPlaybackState?.trackName || item.title,
       artist: spotifyPlaybackState?.artist || item.artist
     });
+    mountNowPlayingTheaterChrome();
     return;
   }
   if (item.provider === "soundcloud") {
@@ -3322,6 +3365,7 @@ const renderNowPlaying = () => {
         title: item.title,
         artist: item.artist
       });
+      mountNowPlayingTheaterChrome();
       return;
     }
   }
@@ -3349,6 +3393,7 @@ const renderNowPlaying = () => {
   }
   syncNowPlayingTheaterToggle();
   renderNowPlayingTheaterNext();
+  mountNowPlayingTheaterChrome();
   const panel = getNowPlayingPanel();
   if (panel) {
     const metaTitle =

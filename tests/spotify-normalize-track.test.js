@@ -41,3 +41,29 @@ test("normalizeTrack omits imageUrl when album has no images", () => {
   });
   assert.equal(out.imageUrl, undefined);
 });
+
+test("normalizeAlbumSummary maps Spotify album fields", () => {
+  const { normalizeAlbumSummary } = require("../lib/spotifyWebApi");
+  const out = normalizeAlbumSummary({
+    id: "al1",
+    name: "No Need To Argue",
+    release_date: "1994-10-03",
+    total_tracks: 12,
+    artists: [{ name: "The Cranberries" }],
+    images: [{ url: "https://i.scdn.co/image/cover.jpg", height: 64, width: 64 }]
+  });
+  assert.equal(out.id, "al1");
+  assert.equal(out.name, "No Need To Argue");
+  assert.equal(out.artist, "The Cranberries");
+  assert.equal(out.releaseYear, "1994");
+  assert.equal(out.trackCount, 12);
+  assert.equal(out.imageUrl, "https://i.scdn.co/image/cover.jpg");
+  assert.equal(out.provider, "spotify");
+  assert.equal(out.kind, "album");
+});
+
+test("normalizeAlbumSummary returns null without id", () => {
+  const { normalizeAlbumSummary } = require("../lib/spotifyWebApi");
+  assert.equal(normalizeAlbumSummary(null), null);
+  assert.equal(normalizeAlbumSummary({ name: "x" }), null);
+});

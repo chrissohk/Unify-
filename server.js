@@ -28,6 +28,8 @@ const {
   getSpotifyCurrentUserProfile,
   enrichSpotifyTracksWithImages,
   spotifySearchTracks,
+  spotifySearchAlbums,
+  spotifyListAlbumTracks,
   spotifyListCurrentUserPlaylists,
   spotifyListFollowedPlaylists,
   spotifyListPlaylistTracks,
@@ -135,6 +137,8 @@ function mockCatalogSearch(providerKey, query) {
 
 /** Stable id for simulated Spotify (no OAuth token): browse mock catalog as a fake playlist. */
 const SPOTIFY_DEMO_PLAYLIST_ID = "demo-playlist";
+/** Stable id for simulated Spotify album search (no OAuth token). */
+const SPOTIFY_DEMO_ALBUM_ID = "demo-album";
 
 function mockSpotifyLikedSongsSummary() {
   return buildSpotifyLikedSongsSummaryWithoutCount();
@@ -178,6 +182,32 @@ function mockSpotifyPlaylistTracks(playlistId) {
   const tracks = mockSpotifyPlaylistTrackResults();
   if (playlistId === SPOTIFY_LIKED_SONGS_ID || playlistId === SPOTIFY_DEMO_PLAYLIST_ID) {
     return tracks;
+  }
+  return null;
+}
+
+function mockSpotifyAlbumSummaries(query) {
+  const album = {
+    id: SPOTIFY_DEMO_ALBUM_ID,
+    name: "Demo album (OAuth Connect shows real Spotify albums)",
+    artist: "MVP",
+    imageUrl: providers.spotify.tracks[0]?.imageUrl,
+    releaseYear: "2024",
+    trackCount: providers.spotify.tracks.length,
+    provider: "spotify",
+    kind: "album"
+  };
+  if (!query) {
+    return [album];
+  }
+  const q = query.toLowerCase();
+  const haystack = `${album.name} ${album.artist}`.toLowerCase();
+  return haystack.includes(q) ? [album] : [];
+}
+
+function mockSpotifyAlbumTracks(albumId) {
+  if (albumId === SPOTIFY_DEMO_ALBUM_ID) {
+    return mockSpotifyPlaylistTrackResults();
   }
   return null;
 }
@@ -804,6 +834,76 @@ app.get("/api/spotify/playlists/:playlistId/tracks", async (req, res) => {
   });
 });
 
+app.get("/api/spotify/albums/:albumId/tracks", async (req, res) => {
+  const { albumId } = req.params;
+  const connectCheck = ensureConnected("spotify");
+  if (!connectCheck.ok) {
+    return res.status(401).json({ error: connectCheck.message, code: connectCheck.code });
+  }
+
+  const limit = Math.min(Number(req.query.limit || 50) || 50, 50);
+  const offset = Math.max(Number(req.query.offset || 0) || 0, 0);
+
+  const tokenResult = await getSpotifyAccessToken({ sessions, persist });
+  if (!tokenResult.ok) {
+    if (spotifyTokenAllowsMockCatalog(tokenResult)) {
+      const mockTracks = mockSpotifyAlbumTracks(albumId);
+      if (mockTracks) {
+        return res.json({
+          results: mockTracks,
+          nextOffset: null,
+          demoMode: true
+        });
+      }
+      return res.status(404).json({ error: "unknown demo album id", code: "SPOTIFY_ALBUM_NOT_FOUND" });
+    }
+    const body = {
+      error: "spotify token is unavailable",
+      code: tokenResult.code || "SPOTIFY_TOKEN_UNAVAILABLE"
+    };
+    if (tokenResult.message) body.hint = tokenResult.message;
+    const d = truncateSpotifyDetails(tokenResult.details);
+    if (d) body.details = d;
+    return res.status(401).json(body);
+  }
+
+  let liveResult = await spotifyListAlbumTracks({
+    sessions,
+    persist,
+    albumId,
+    limit,
+    offset
+  });
+
+  if (!liveResult.ok && liveResult.status === 401) {
+    const refreshResult = await getSpotifyAccessToken({ sessions, persist, forceRefresh: true });
+    if (!refreshResult.ok) {
+      return res.status(401).json({
+        error: "spotify token refresh failed",
+        code: refreshResult.code || "SPOTIFY_REFRESH_FAILED"
+      });
+    }
+    liveResult = await spotifyListAlbumTracks({
+      sessions,
+      persist,
+      albumId,
+      limit,
+      offset
+    });
+  }
+
+  if (!liveResult.ok) {
+    return mapSpotifyBrowseError(res, liveResult, "SPOTIFY_ALBUM_TRACKS_FAILED");
+  }
+
+  const results = liveResult.results || [];
+  return res.json({
+    results,
+    nextOffset: liveResult.nextOffset,
+    demoMode: false
+  });
+});
+
 app.get("/api/soundcloud/playlists", async (req, res) => {
   const connectCheck = ensureConnected("soundcloud");
   if (!connectCheck.ok) {
@@ -1017,12 +1117,16 @@ app.get("/api/provider/:provider/search", async (req, res) => {
   }
 
   if (provider === "spotify") {
+    const searchType = (req.query.type || "track").toString().toLowerCase() === "album" ? "album" : "track";
     const tokenResult = await getSpotifyAccessToken({ sessions, persist });
     if (!tokenResult.ok) {
       const useMock = spotifyTokenAllowsMockCatalog(tokenResult);
       if (useMock) {
         if (randomFail(0.08)) {
           return res.status(429).json({ error: `${provider} rate limit`, code: "PROVIDER_RATE_LIMIT" });
+        }
+        if (searchType === "album") {
+          return res.json({ provider, kind: "album", results: mockSpotifyAlbumSummaries(query), demoMode: true });
         }
         return res.json(mockCatalogSearch("spotify", query));
       }
@@ -1038,7 +1142,8 @@ app.get("/api/provider/:provider/search", async (req, res) => {
     const market = sessions.spotify?.country || undefined;
     const searchLimit = Number(req.query.limit || 10);
 
-    let liveResult = await spotifySearchTracks({
+    const searchFn = searchType === "album" ? spotifySearchAlbums : spotifySearchTracks;
+    let liveResult = await searchFn({
       accessToken: tokenResult.accessToken,
       query,
       limit: searchLimit,
@@ -1053,7 +1158,7 @@ app.get("/api/provider/:provider/search", async (req, res) => {
           code: refreshResult.code || "SPOTIFY_REFRESH_FAILED"
         });
       }
-      liveResult = await spotifySearchTracks({
+      liveResult = await searchFn({
         accessToken: refreshResult.accessToken,
         query,
         limit: searchLimit,
@@ -1077,12 +1182,15 @@ app.get("/api/provider/:provider/search", async (req, res) => {
     }
 
     let results = liveResult.results;
-    const enrichResult = await enrichSpotifyTracksWithImages({ sessions, persist, tracks: results });
-    if (enrichResult.ok) {
-      results = enrichResult.tracks;
+    if (searchType === "track") {
+      const enrichResult = await enrichSpotifyTracksWithImages({ sessions, persist, tracks: results });
+      if (enrichResult.ok) {
+        results = enrichResult.tracks;
+      }
+      return res.json({ provider, results });
     }
 
-    return res.json({ provider, results });
+    return res.json({ provider, kind: "album", results });
   }
 
   if (provider === "soundcloud") {

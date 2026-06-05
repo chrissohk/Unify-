@@ -1810,6 +1810,51 @@ body.now-playing-theater-open .now-playing-layout__artist {
   background: #2ee66f;
 }
 
+.search-mode-toggle {
+  display: inline-flex;
+  gap: 2px;
+  margin-bottom: 10px;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.search-mode-btn {
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  padding: 6px 14px;
+  min-height: 32px;
+}
+
+.search-mode-btn:hover:not(.is-selected) {
+  color: var(--color-text);
+  background: var(--color-surface-raised);
+}
+
+#panel-spotify-search .search-mode-btn.is-selected {
+  color: #052e14;
+  background: var(--color-spotify);
+  border-color: rgba(30, 215, 96, 0.45);
+}
+
+#panel-spotify-search .search-mode-btn:focus-visible {
+  outline: 2px solid var(--color-spotify);
+  outline-offset: 2px;
+}
+
+.spotify-album-tracks-pane {
+  margin-top: 12px;
+  margin-bottom: 16px;
+}
+
+#panel-spotify-search .spotify-album-tracks-pane .playlist-row-btn:hover:not(:disabled) {
+  border-color: var(--color-spotify);
+}
+
 form {
   display: grid;
   gap: 10px;

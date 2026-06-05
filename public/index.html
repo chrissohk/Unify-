@@ -353,6 +353,37 @@
               aria-label="Spotify account"
             ></div>
           </div>
+          <div
+            class="search-mode-toggle"
+            role="tablist"
+            aria-label="Spotify search type"
+            data-testid="spotify-search-mode-toggle"
+          >
+            <button
+              type="button"
+              id="spotifySearchModeTracks"
+              class="search-mode-btn is-selected"
+              role="tab"
+              aria-selected="true"
+              aria-controls="spotifySearchResults"
+              data-search-mode="track"
+              data-testid="spotify-search-mode-tracks"
+            >
+              Tracks
+            </button>
+            <button
+              type="button"
+              id="spotifySearchModeAlbums"
+              class="search-mode-btn"
+              role="tab"
+              aria-selected="false"
+              aria-controls="spotifySearchResults"
+              data-search-mode="album"
+              data-testid="spotify-search-mode-albums"
+            >
+              Albums
+            </button>
+          </div>
           <form id="spotifySearchForm" class="search-form">
             <div class="search-field">
               <svg
@@ -383,6 +414,52 @@
             <button type="submit" data-testid="spotify-search-submit">Search</button>
           </form>
           <ul id="spotifySearchResults" class="track-list"></ul>
+
+          <div
+            class="playlist-tracks-pane spotify-album-tracks-pane"
+            id="spotifyAlbumTracksPanel"
+            hidden
+            data-testid="spotify-album-tracks-panel"
+          >
+            <div class="playlist-tracks-header">
+              <h3 id="spotifySelectedAlbumTitle" class="playlist-pane-title">Album tracks</h3>
+            </div>
+            <div
+              id="spotifyAlbumTracksLoading"
+              class="playlist-loading playlist-tracks-loading"
+              hidden
+              aria-hidden="true"
+              data-testid="spotify-album-tracks-loading"
+            >
+              <div class="dot-spinner" role="status">
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span class="visually-hidden">Loading album tracks</span>
+              </div>
+            </div>
+            <p
+              id="spotifyAlbumTracksStatus"
+              class="hint-text"
+              data-testid="spotify-album-tracks-status"
+              aria-live="polite"
+            ></p>
+            <ul id="spotifyAlbumTracks" class="playlist-track-list track-list"></ul>
+            <button
+              type="button"
+              id="spotifyAlbumTracksMore"
+              class="load-more-btn"
+              hidden
+              data-testid="spotify-album-tracks-more"
+            >
+              More tracks
+            </button>
+          </div>
 
           <div class="spotify-library-split library-split" aria-label="Spotify library">
             <div class="playlist-pane">

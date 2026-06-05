@@ -5,6 +5,14 @@ const authNoticeEl = document.getElementById("authNotice");
 const spotifySearchForm = document.getElementById("spotifySearchForm");
 const spotifySearchQuery = document.getElementById("spotifySearchQuery");
 const spotifySearchResults = document.getElementById("spotifySearchResults");
+const spotifySearchModeTracks = document.getElementById("spotifySearchModeTracks");
+const spotifySearchModeAlbums = document.getElementById("spotifySearchModeAlbums");
+const spotifyAlbumTracksPanel = document.getElementById("spotifyAlbumTracksPanel");
+const spotifySelectedAlbumTitle = document.getElementById("spotifySelectedAlbumTitle");
+const spotifyAlbumTracksLoading = document.getElementById("spotifyAlbumTracksLoading");
+const spotifyAlbumTracksStatus = document.getElementById("spotifyAlbumTracksStatus");
+const spotifyAlbumTracks = document.getElementById("spotifyAlbumTracks");
+const spotifyAlbumTracksMore = document.getElementById("spotifyAlbumTracksMore");
 const soundcloudSearchForm = document.getElementById("soundcloudSearchForm");
 const soundcloudSearchQuery = document.getElementById("soundcloudSearchQuery");
 const soundcloudSearchResults = document.getElementById("soundcloudSearchResults");
@@ -816,7 +824,16 @@ let lastNowPlayingSnapshot = null;
 let lastNowPlayingEmbedKey = null;
 let activeTimer = null;
 let activeSpotifyResults = [];
+let activeSpotifyAlbumResults = [];
+let spotifySearchMode = "track";
 let activeSoundcloudResults = [];
+/** Spotify album search browser (GET /api/spotify/albums/:id/tracks). */
+let spotifyAlbumBrowser = {
+  selectedId: null,
+  selectedTitle: "",
+  tracks: [],
+  tracksNextOffset: null
+};
 /** Spotify playlist browser (GET /api/spotify/playlists + tracks). */
 let spotifyPlaylistBrowser = {
   likedSongs: null,
@@ -3658,7 +3675,38 @@ const renderTrackList = (ul, tracks) => {
 
 const renderSpotifySearchResults = () => {
   if (!spotifySearchResults) return;
+  if (spotifySearchMode === "album") {
+    renderSpotifyAlbumSearchResults();
+    return;
+  }
   renderTrackList(spotifySearchResults, activeSpotifyResults);
+};
+
+const appendSpotifyAlbumRow = (ul, album) => {
+  if (!ul || !album) return;
+  const li = document.createElement("li");
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "playlist-row-btn";
+  const meta = [];
+  if (album.artist) meta.push(album.artist);
+  if (album.releaseYear) meta.push(album.releaseYear);
+  if (typeof album.trackCount === "number" && album.trackCount > 0) {
+    meta.push(`${album.trackCount} tracks`);
+  }
+  const suffix = meta.length ? ` · ${meta.join(" · ")}` : "";
+  btn.textContent = `${album.name || "Untitled"}${suffix}`;
+  btn.setAttribute("data-testid", "spotify-album-row");
+  btn.onclick = () => void selectSpotifyAlbum(album.id, album.name);
+  li.appendChild(btn);
+  ul.appendChild(li);
+};
+
+const renderSpotifyAlbumSearchResults = () => {
+  if (!spotifySearchResults) return;
+  spotifySearchResults.innerHTML = "";
+  if (!activeSpotifyAlbumResults.length) return;
+  activeSpotifyAlbumResults.forEach((album) => appendSpotifyAlbumRow(spotifySearchResults, album));
 };
 
 const renderSoundcloudSearchResults = () => {
@@ -3666,8 +3714,12 @@ const renderSoundcloudSearchResults = () => {
   renderTrackList(soundcloudSearchResults, activeSoundcloudResults);
 };
 
-const runProviderSearch = async (provider, query, onResults) => {
-  const response = await apiFetch(`/api/provider/${provider}/search?q=${encodeURIComponent(query)}`);
+const runProviderSearch = async (provider, query, onResults, options = {}) => {
+  let path = `/api/provider/${provider}/search?q=${encodeURIComponent(query)}`;
+  if (provider === "spotify" && options.type === "album") {
+    path += "&type=album";
+  }
+  const response = await apiFetch(path);
   if (!response.ok) {
     const err = await response.json();
     if (!noteAuthFailure(provider, err)) {
@@ -3678,6 +3730,140 @@ const runProviderSearch = async (provider, query, onResults) => {
   }
   const data = await response.json();
   onResults(data.results || []);
+};
+
+const setSpotifySearchMode = (mode) => {
+  const nextMode = mode === "album" ? "album" : "track";
+  spotifySearchMode = nextMode;
+  if (spotifySearchModeTracks) {
+    const selected = nextMode === "track";
+    spotifySearchModeTracks.classList.toggle("is-selected", selected);
+    spotifySearchModeTracks.setAttribute("aria-selected", selected ? "true" : "false");
+  }
+  if (spotifySearchModeAlbums) {
+    const selected = nextMode === "album";
+    spotifySearchModeAlbums.classList.toggle("is-selected", selected);
+    spotifySearchModeAlbums.setAttribute("aria-selected", selected ? "true" : "false");
+  }
+  if (nextMode === "track") {
+    activeSpotifyAlbumResults = [];
+    hideSpotifyAlbumTracksPane();
+  } else {
+    activeSpotifyResults = [];
+  }
+  renderSpotifySearchResults();
+};
+
+const setSpotifyAlbumTracksLoading = (loading) => {
+  if (spotifyAlbumTracksPanel) {
+    spotifyAlbumTracksPanel.classList.toggle("is-tracks-loading", Boolean(loading));
+  }
+  if (spotifyAlbumTracksLoading) {
+    spotifyAlbumTracksLoading.hidden = !loading;
+    spotifyAlbumTracksLoading.setAttribute("aria-hidden", loading ? "false" : "true");
+  }
+  if (spotifyAlbumTracks) {
+    spotifyAlbumTracks.hidden = loading;
+    spotifyAlbumTracks.setAttribute("aria-hidden", loading ? "true" : "false");
+  }
+  if (spotifyAlbumTracksMore && loading) {
+    spotifyAlbumTracksMore.hidden = true;
+  }
+  if (spotifyAlbumTracksStatus) {
+    if (loading) {
+      spotifyAlbumTracksStatus.textContent = "";
+      spotifyAlbumTracksStatus.hidden = true;
+    } else if (!spotifyAlbumTracksStatus.textContent) {
+      spotifyAlbumTracksStatus.hidden = true;
+    }
+  }
+};
+
+const hideSpotifyAlbumTracksPane = () => {
+  setSpotifyAlbumTracksLoading(false);
+  if (spotifyAlbumTracksPanel) spotifyAlbumTracksPanel.hidden = true;
+  spotifyAlbumBrowser.selectedId = null;
+  spotifyAlbumBrowser.selectedTitle = "";
+  spotifyAlbumBrowser.tracks = [];
+  spotifyAlbumBrowser.tracksNextOffset = null;
+};
+
+const fetchSpotifyAlbumTracksPage = async (albumId, offset) => {
+  const res = await apiFetch(
+    `/api/spotify/albums/${encodeURIComponent(albumId)}/tracks?limit=50&offset=${offset}`
+  );
+  if (!res.ok) {
+    throw new Error(await formatSpotifyPlaylistHttpError(res, "Could not load album tracks"));
+  }
+  return res.json();
+};
+
+const renderSpotifyAlbumTracks = () => {
+  if (!spotifyAlbumTracks) return;
+  renderTrackList(spotifyAlbumTracks, spotifyAlbumBrowser.tracks);
+};
+
+const selectSpotifyAlbum = async (albumId, albumName) => {
+  if (!spotifyAlbumTracksPanel || !spotifySelectedAlbumTitle || !spotifyAlbumTracks) return;
+  spotifyAlbumBrowser.selectedId = albumId;
+  spotifyAlbumBrowser.selectedTitle = albumName || "";
+  spotifyAlbumBrowser.tracks = [];
+  spotifyAlbumBrowser.tracksNextOffset = null;
+  spotifySelectedAlbumTitle.textContent = formatSoundCloudPlaylistTitle(albumName);
+  spotifyAlbumTracksPanel.hidden = false;
+  spotifyAlbumTracks.innerHTML = "";
+  setSpotifyAlbumTracksLoading(true);
+  if (spotifyAlbumTracksMore) spotifyAlbumTracksMore.hidden = true;
+  try {
+    const data = await fetchSpotifyAlbumTracksPage(albumId, 0);
+    spotifyAlbumBrowser.tracks = data.results || [];
+    spotifyAlbumBrowser.tracksNextOffset =
+      data.nextOffset === null || data.nextOffset === undefined ? null : data.nextOffset;
+    renderSpotifyAlbumTracks();
+    setSpotifyAlbumTracksLoading(false);
+    if (spotifyAlbumTracksStatus) {
+      spotifyAlbumTracksStatus.textContent = "";
+    }
+    if (spotifyAlbumTracksMore) {
+      spotifyAlbumTracksMore.hidden = spotifyAlbumBrowser.tracksNextOffset === null;
+    }
+  } catch (e) {
+    setSpotifyAlbumTracksLoading(false);
+    if (spotifyAlbumTracksStatus) {
+      spotifyAlbumTracksStatus.textContent = "";
+    }
+    alertUnlessAuthNotice("spotify", e.message, "Failed to load album tracks");
+  }
+};
+
+const loadMoreSpotifyAlbumTracks = async () => {
+  if (
+    !spotifyAlbumTracksMore ||
+    !spotifyAlbumBrowser.selectedId ||
+    spotifyAlbumBrowser.tracksNextOffset === null
+  ) {
+    return;
+  }
+  spotifyAlbumTracksMore.disabled = true;
+  try {
+    const data = await fetchSpotifyAlbumTracksPage(
+      spotifyAlbumBrowser.selectedId,
+      spotifyAlbumBrowser.tracksNextOffset
+    );
+    const more = data.results || [];
+    spotifyAlbumBrowser.tracks = spotifyAlbumBrowser.tracks.concat(more);
+    spotifyAlbumBrowser.tracksNextOffset =
+      data.nextOffset === null || data.nextOffset === undefined ? null : data.nextOffset;
+    renderSpotifyAlbumTracks();
+    if (spotifyAlbumTracksStatus) {
+      spotifyAlbumTracksStatus.textContent = "";
+    }
+    spotifyAlbumTracksMore.hidden = spotifyAlbumBrowser.tracksNextOffset === null;
+  } catch (e) {
+    alertUnlessAuthNotice("spotify", e.message, "Load more failed");
+  } finally {
+    spotifyAlbumTracksMore.disabled = false;
+  }
 };
 
 const setSpotifyPlaylistLoading = (loading) => {
@@ -4683,10 +4869,31 @@ if (nowPlayingTheaterBtn) {
 document.addEventListener("keydown", handleNowPlayingTheaterKeydown);
 document.addEventListener("fullscreenchange", handleNowPlayingTheaterFullscreenChange);
 
+if (spotifySearchModeTracks) {
+  spotifySearchModeTracks.addEventListener("click", () => setSpotifySearchMode("track"));
+}
+if (spotifySearchModeAlbums) {
+  spotifySearchModeAlbums.addEventListener("click", () => setSpotifySearchMode("album"));
+}
+
 if (spotifySearchForm && spotifySearchQuery) {
   spotifySearchForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const query = spotifySearchQuery.value.trim();
+    if (spotifySearchMode === "album") {
+      hideSpotifyAlbumTracksPane();
+      await runProviderSearch(
+        "spotify",
+        query,
+        (results) => {
+          activeSpotifyAlbumResults = results;
+          renderSpotifySearchResults();
+        },
+        { type: "album" }
+      );
+      return;
+    }
+    hideSpotifyAlbumTracksPane();
     await runProviderSearch("spotify", query, (results) => {
       activeSpotifyResults = results;
       renderSpotifySearchResults();
@@ -4695,8 +4902,14 @@ if (spotifySearchForm && spotifySearchQuery) {
   spotifySearchQuery.addEventListener("input", () => {
     if (spotifySearchQuery.value.trim()) return;
     activeSpotifyResults = [];
+    activeSpotifyAlbumResults = [];
+    hideSpotifyAlbumTracksPane();
     renderSpotifySearchResults();
   });
+}
+
+if (spotifyAlbumTracksMore) {
+  spotifyAlbumTracksMore.addEventListener("click", () => void loadMoreSpotifyAlbumTracks());
 }
 
 if (soundcloudSearchForm && soundcloudSearchQuery) {

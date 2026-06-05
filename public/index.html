@@ -354,6 +354,11 @@
             ></div>
           </div>
           <div
+            id="spotifySearchBrowse"
+            class="spotify-search-browse"
+            data-testid="spotify-search-browse"
+          >
+          <div
             class="search-mode-toggle"
             role="tablist"
             aria-label="Spotify search type"
@@ -414,16 +419,57 @@
             <button type="submit" data-testid="spotify-search-submit">Search</button>
           </form>
           <ul id="spotifySearchResults" class="track-list"></ul>
+          </div>
 
           <div
-            class="playlist-tracks-pane spotify-album-tracks-pane"
+            class="playlist-tracks-pane spotify-album-tracks-pane spotify-album-detail"
             id="spotifyAlbumTracksPanel"
             hidden
             data-testid="spotify-album-tracks-panel"
           >
-            <div class="playlist-tracks-header">
-              <h3 id="spotifySelectedAlbumTitle" class="playlist-pane-title">Album tracks</h3>
+            <button
+              type="button"
+              id="spotifyAlbumBack"
+              class="spotify-album-detail__back"
+              data-testid="spotify-album-back"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path
+                  d="M15 18l-6-6 6-6"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              Back to albums
+            </button>
+            <div id="spotifyAlbumHero" class="spotify-album-hero" data-testid="spotify-album-hero">
+              <div class="spotify-album-hero__cover-wrap">
+                <img
+                  id="spotifyAlbumHeroCover"
+                  class="spotify-album-hero__cover"
+                  alt=""
+                  width="160"
+                  height="160"
+                  decoding="async"
+                  hidden
+                  data-testid="spotify-album-hero-cover"
+                />
+                <div
+                  id="spotifyAlbumHeroCoverFallback"
+                  class="spotify-album-hero__cover spotify-album-hero__cover--fallback"
+                  aria-hidden="true"
+                  data-testid="spotify-album-hero-cover-fallback"
+                ></div>
+              </div>
+              <div class="spotify-album-hero__meta">
+                <h3 id="spotifyAlbumHeroTitle" class="spotify-album-hero__title" data-testid="spotify-album-hero-title"></h3>
+                <p id="spotifyAlbumHeroMeta" class="spotify-album-hero__subtitle" data-testid="spotify-album-hero-meta"></p>
+              </div>
             </div>
+            <h3 id="spotifySelectedAlbumTitle" class="visually-hidden">Album tracks</h3>
             <div
               id="spotifyAlbumTracksLoading"
               class="playlist-loading playlist-tracks-loading"

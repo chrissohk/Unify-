@@ -7,7 +7,14 @@ const spotifySearchQuery = document.getElementById("spotifySearchQuery");
 const spotifySearchResults = document.getElementById("spotifySearchResults");
 const spotifySearchModeTracks = document.getElementById("spotifySearchModeTracks");
 const spotifySearchModeAlbums = document.getElementById("spotifySearchModeAlbums");
+const spotifySearchBrowse = document.getElementById("spotifySearchBrowse");
 const spotifyAlbumTracksPanel = document.getElementById("spotifyAlbumTracksPanel");
+const spotifyAlbumBack = document.getElementById("spotifyAlbumBack");
+const spotifyAlbumHero = document.getElementById("spotifyAlbumHero");
+const spotifyAlbumHeroCover = document.getElementById("spotifyAlbumHeroCover");
+const spotifyAlbumHeroCoverFallback = document.getElementById("spotifyAlbumHeroCoverFallback");
+const spotifyAlbumHeroTitle = document.getElementById("spotifyAlbumHeroTitle");
+const spotifyAlbumHeroMeta = document.getElementById("spotifyAlbumHeroMeta");
 const spotifySelectedAlbumTitle = document.getElementById("spotifySelectedAlbumTitle");
 const spotifyAlbumTracksLoading = document.getElementById("spotifyAlbumTracksLoading");
 const spotifyAlbumTracksStatus = document.getElementById("spotifyAlbumTracksStatus");
@@ -831,6 +838,7 @@ let activeSoundcloudResults = [];
 let spotifyAlbumBrowser = {
   selectedId: null,
   selectedTitle: "",
+  selectedAlbum: null,
   tracks: [],
   tracksNextOffset: null
 };
@@ -3697,7 +3705,7 @@ const appendSpotifyAlbumRow = (ul, album) => {
   const suffix = meta.length ? ` · ${meta.join(" · ")}` : "";
   btn.textContent = `${album.name || "Untitled"}${suffix}`;
   btn.setAttribute("data-testid", "spotify-album-row");
-  btn.onclick = () => void selectSpotifyAlbum(album.id, album.name);
+  btn.onclick = () => void selectSpotifyAlbum(album);
   li.appendChild(btn);
   ul.appendChild(li);
 };
@@ -3734,6 +3742,9 @@ const runProviderSearch = async (provider, query, onResults, options = {}) => {
 
 const setSpotifySearchMode = (mode) => {
   const nextMode = mode === "album" ? "album" : "track";
+  if (spotifyAlbumBrowser.selectedId) {
+    hideSpotifyAlbumTracksPane();
+  }
   spotifySearchMode = nextMode;
   if (spotifySearchModeTracks) {
     const selected = nextMode === "track";
@@ -3747,11 +3758,71 @@ const setSpotifySearchMode = (mode) => {
   }
   if (nextMode === "track") {
     activeSpotifyAlbumResults = [];
-    hideSpotifyAlbumTracksPane();
   } else {
     activeSpotifyResults = [];
   }
   renderSpotifySearchResults();
+};
+
+const showSpotifySearchBrowse = () => {
+  if (spotifySearchBrowse) spotifySearchBrowse.hidden = false;
+  panelSpotifySearch?.classList.remove("is-album-detail-open");
+};
+
+const renderSpotifyAlbumHero = (album) => {
+  const name = album?.name || "Untitled";
+  const artist = album?.artist || "";
+  const releaseYear = album?.releaseYear || "";
+  const trackCount =
+    typeof album?.trackCount === "number" && album.trackCount > 0 ? album.trackCount : null;
+  const imageUrl = String(album?.imageUrl || "").trim();
+
+  if (spotifyAlbumHeroTitle) {
+    spotifyAlbumHeroTitle.textContent = name;
+  }
+  if (spotifySelectedAlbumTitle) {
+    spotifySelectedAlbumTitle.textContent = name;
+  }
+  if (spotifyAlbumHeroMeta) {
+    const meta = [];
+    if (artist) meta.push(artist);
+    if (releaseYear) meta.push(releaseYear);
+    if (trackCount) meta.push(`${trackCount} tracks`);
+    spotifyAlbumHeroMeta.textContent = meta.join(" · ");
+  }
+  if (spotifyAlbumHeroCover) {
+    if (imageUrl) {
+      spotifyAlbumHeroCover.src = imageUrl;
+      spotifyAlbumHeroCover.alt = `${name} cover art`;
+      spotifyAlbumHeroCover.hidden = false;
+    } else {
+      spotifyAlbumHeroCover.removeAttribute("src");
+      spotifyAlbumHeroCover.alt = "";
+      spotifyAlbumHeroCover.hidden = true;
+    }
+  }
+  if (spotifyAlbumHeroCoverFallback) {
+    spotifyAlbumHeroCoverFallback.hidden = Boolean(imageUrl);
+  }
+};
+
+const clearSpotifyAlbumHero = () => {
+  if (spotifyAlbumHeroTitle) spotifyAlbumHeroTitle.textContent = "";
+  if (spotifyAlbumHeroMeta) spotifyAlbumHeroMeta.textContent = "";
+  if (spotifySelectedAlbumTitle) spotifySelectedAlbumTitle.textContent = "Album tracks";
+  if (spotifyAlbumHeroCover) {
+    spotifyAlbumHeroCover.removeAttribute("src");
+    spotifyAlbumHeroCover.alt = "";
+    spotifyAlbumHeroCover.hidden = true;
+  }
+  if (spotifyAlbumHeroCoverFallback) spotifyAlbumHeroCoverFallback.hidden = false;
+};
+
+const showSpotifyAlbumDetail = (album) => {
+  if (spotifySearchBrowse) spotifySearchBrowse.hidden = true;
+  if (spotifyAlbumTracksPanel) spotifyAlbumTracksPanel.hidden = false;
+  panelSpotifySearch?.classList.add("is-album-detail-open");
+  renderSpotifyAlbumHero(album);
 };
 
 const setSpotifyAlbumTracksLoading = (loading) => {
@@ -3782,8 +3853,11 @@ const setSpotifyAlbumTracksLoading = (loading) => {
 const hideSpotifyAlbumTracksPane = () => {
   setSpotifyAlbumTracksLoading(false);
   if (spotifyAlbumTracksPanel) spotifyAlbumTracksPanel.hidden = true;
+  showSpotifySearchBrowse();
+  clearSpotifyAlbumHero();
   spotifyAlbumBrowser.selectedId = null;
   spotifyAlbumBrowser.selectedTitle = "";
+  spotifyAlbumBrowser.selectedAlbum = null;
   spotifyAlbumBrowser.tracks = [];
   spotifyAlbumBrowser.tracksNextOffset = null;
 };
@@ -3803,17 +3877,20 @@ const renderSpotifyAlbumTracks = () => {
   renderTrackList(spotifyAlbumTracks, spotifyAlbumBrowser.tracks);
 };
 
-const selectSpotifyAlbum = async (albumId, albumName) => {
-  if (!spotifyAlbumTracksPanel || !spotifySelectedAlbumTitle || !spotifyAlbumTracks) return;
+const selectSpotifyAlbum = async (album) => {
+  if (!spotifyAlbumTracksPanel || !spotifyAlbumTracks || !album?.id) return;
+  const albumId = album.id;
+  const albumName = album.name || "";
   spotifyAlbumBrowser.selectedId = albumId;
-  spotifyAlbumBrowser.selectedTitle = albumName || "";
+  spotifyAlbumBrowser.selectedTitle = albumName;
+  spotifyAlbumBrowser.selectedAlbum = album;
   spotifyAlbumBrowser.tracks = [];
   spotifyAlbumBrowser.tracksNextOffset = null;
-  spotifySelectedAlbumTitle.textContent = formatSoundCloudPlaylistTitle(albumName);
-  spotifyAlbumTracksPanel.hidden = false;
+  showSpotifyAlbumDetail(album);
   spotifyAlbumTracks.innerHTML = "";
   setSpotifyAlbumTracksLoading(true);
   if (spotifyAlbumTracksMore) spotifyAlbumTracksMore.hidden = true;
+  spotifyAlbumTracksPanel?.scrollIntoView({ block: "start", behavior: "smooth" });
   try {
     const data = await fetchSpotifyAlbumTracksPage(albumId, 0);
     spotifyAlbumBrowser.tracks = data.results || [];
@@ -4910,6 +4987,10 @@ if (spotifySearchForm && spotifySearchQuery) {
 
 if (spotifyAlbumTracksMore) {
   spotifyAlbumTracksMore.addEventListener("click", () => void loadMoreSpotifyAlbumTracks());
+}
+
+if (spotifyAlbumBack) {
+  spotifyAlbumBack.addEventListener("click", () => hideSpotifyAlbumTracksPane());
 }
 
 if (soundcloudSearchForm && soundcloudSearchQuery) {

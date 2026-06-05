@@ -415,26 +415,65 @@
                   data-testid="spotify-playlist-status"
                 ></p>
                 <div class="spotify-library-groups" id="spotifyLibraryGroups">
-                  <h4 class="library-group-title">Liked Songs</h4>
-                  <ul id="spotifyLikedSongsList" class="playlist-list" data-testid="spotify-liked-songs-list"></ul>
-                  <h4 class="library-group-title">Your playlists</h4>
-                  <ul
-                    id="spotifyPlaylistList"
-                    class="playlist-list"
-                    data-testid="spotify-playlist-list"
-                  ></ul>
-                  <button type="button" id="spotifyPlaylistsMore" class="load-more-btn" hidden data-testid="spotify-playlists-more">
-                    More playlists
-                  </button>
-                  <h4 class="library-group-title">Liked playlists</h4>
-                  <ul
-                    id="spotifyLikedPlaylistList"
-                    class="playlist-list"
-                    data-testid="spotify-liked-playlist-list"
-                  ></ul>
-                  <button type="button" id="spotifyLikedPlaylistsMore" class="load-more-btn" hidden data-testid="spotify-liked-playlists-more">
-                    More liked playlists
-                  </button>
+                  <section class="library-group" data-library-group="spotify-liked-songs">
+                    <button
+                      type="button"
+                      class="library-group-toggle"
+                      aria-expanded="true"
+                      data-testid="library-group-toggle-spotify-liked-songs"
+                    >
+                      <span class="library-group-toggle__label">Liked Songs</span>
+                      <span class="library-group-toggle__meta"></span>
+                      <span class="library-group-toggle__chevron" aria-hidden="true"></span>
+                    </button>
+                    <div class="library-group-body">
+                      <ul id="spotifyLikedSongsList" class="playlist-list" data-testid="spotify-liked-songs-list"></ul>
+                    </div>
+                  </section>
+                  <section class="library-group" data-library-group="spotify-owned">
+                    <button
+                      type="button"
+                      class="library-group-toggle"
+                      aria-expanded="true"
+                      data-testid="library-group-toggle-spotify-owned"
+                    >
+                      <span class="library-group-toggle__label">Your playlists</span>
+                      <span class="library-group-toggle__meta"></span>
+                      <span class="library-group-toggle__chevron" aria-hidden="true"></span>
+                    </button>
+                    <div class="library-group-body">
+                      <ul
+                        id="spotifyPlaylistList"
+                        class="playlist-list"
+                        data-testid="spotify-playlist-list"
+                      ></ul>
+                      <button type="button" id="spotifyPlaylistsMore" class="load-more-btn" hidden data-testid="spotify-playlists-more">
+                        More playlists
+                      </button>
+                    </div>
+                  </section>
+                  <section class="library-group" data-library-group="spotify-liked">
+                    <button
+                      type="button"
+                      class="library-group-toggle"
+                      aria-expanded="true"
+                      data-testid="library-group-toggle-spotify-liked"
+                    >
+                      <span class="library-group-toggle__label">Liked playlists</span>
+                      <span class="library-group-toggle__meta"></span>
+                      <span class="library-group-toggle__chevron" aria-hidden="true"></span>
+                    </button>
+                    <div class="library-group-body">
+                      <ul
+                        id="spotifyLikedPlaylistList"
+                        class="playlist-list"
+                        data-testid="spotify-liked-playlist-list"
+                      ></ul>
+                      <button type="button" id="spotifyLikedPlaylistsMore" class="load-more-btn" hidden data-testid="spotify-liked-playlists-more">
+                        More liked playlists
+                      </button>
+                    </div>
+                  </section>
                 </div>
               </div>
             </div>
@@ -581,18 +620,57 @@
                   </div>
                 </div>
                 <div class="soundcloud-library-groups" id="soundcloudLibraryGroups">
-                  <h4 class="library-group-title">Likes</h4>
-                  <ul id="soundcloudLikesList" class="playlist-list" data-testid="soundcloud-likes-list"></ul>
-                  <h4 class="library-group-title">Your playlists</h4>
-                  <ul id="soundcloudOwnedPlaylistList" class="playlist-list" data-testid="soundcloud-owned-playlist-list"></ul>
-                  <button type="button" id="soundcloudOwnedPlaylistsMore" class="load-more-btn" hidden data-testid="soundcloud-owned-playlists-more">
-                    More playlists
-                  </button>
-                  <h4 class="library-group-title">Liked playlists</h4>
-                  <ul id="soundcloudLikedPlaylistList" class="playlist-list" data-testid="soundcloud-liked-playlist-list"></ul>
-                  <button type="button" id="soundcloudLikedPlaylistsMore" class="load-more-btn" hidden data-testid="soundcloud-liked-playlists-more">
-                    More liked playlists
-                  </button>
+                  <section class="library-group" data-library-group="soundcloud-likes">
+                    <button
+                      type="button"
+                      class="library-group-toggle"
+                      aria-expanded="true"
+                      data-testid="library-group-toggle-soundcloud-likes"
+                    >
+                      <span class="library-group-toggle__label">Likes</span>
+                      <span class="library-group-toggle__meta"></span>
+                      <span class="library-group-toggle__chevron" aria-hidden="true"></span>
+                    </button>
+                    <div class="library-group-body">
+                      <ul id="soundcloudLikesList" class="playlist-list" data-testid="soundcloud-likes-list"></ul>
+                    </div>
+                  </section>
+                  <section class="library-group" data-library-group="soundcloud-owned">
+                    <button
+                      type="button"
+                      class="library-group-toggle"
+                      aria-expanded="true"
+                      data-testid="library-group-toggle-soundcloud-owned"
+                    >
+                      <span class="library-group-toggle__label">Your playlists</span>
+                      <span class="library-group-toggle__meta"></span>
+                      <span class="library-group-toggle__chevron" aria-hidden="true"></span>
+                    </button>
+                    <div class="library-group-body">
+                      <ul id="soundcloudOwnedPlaylistList" class="playlist-list" data-testid="soundcloud-owned-playlist-list"></ul>
+                      <button type="button" id="soundcloudOwnedPlaylistsMore" class="load-more-btn" hidden data-testid="soundcloud-owned-playlists-more">
+                        More playlists
+                      </button>
+                    </div>
+                  </section>
+                  <section class="library-group" data-library-group="soundcloud-liked">
+                    <button
+                      type="button"
+                      class="library-group-toggle"
+                      aria-expanded="true"
+                      data-testid="library-group-toggle-soundcloud-liked"
+                    >
+                      <span class="library-group-toggle__label">Liked playlists</span>
+                      <span class="library-group-toggle__meta"></span>
+                      <span class="library-group-toggle__chevron" aria-hidden="true"></span>
+                    </button>
+                    <div class="library-group-body">
+                      <ul id="soundcloudLikedPlaylistList" class="playlist-list" data-testid="soundcloud-liked-playlist-list"></ul>
+                      <button type="button" id="soundcloudLikedPlaylistsMore" class="load-more-btn" hidden data-testid="soundcloud-liked-playlists-more">
+                        More liked playlists
+                      </button>
+                    </div>
+                  </section>
                 </div>
               </div>
             </div>

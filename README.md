@@ -459,6 +459,7 @@ The sections below describe features, architecture, testing, and deployment in m
 
 - **SoundCloud**: the embedded widget fires a `FINISH` event, which advances the queue; a fallback timer still runs if that event is missed.
 - **Spotify** (Web Playback SDK): combines (1) near-end detection on `player_state_changed`, (2) **same-track restart** detection when playback jumps back near the start after the playhead had reached the last seconds (avoids Spotify looping the same URI while the queue already points at the next item), (3) a **wall-clock timer** anchored when the track starts so the fallback advance still fires on time even if SDK position resets to zero, and (4) a timer-only fallback using each queue row’s `durationSec`. User **Pause** clears the wall anchor so a long pause does not fire an advance based on wall time alone; **Resume** re-anchors from the current position.
+- **Same-tab reload**: playback position for the current Spotify or SoundCloud track is saved in `sessionStorage` and restored on reload (seek bar and resume time). If you were playing before reload, the app tries to auto-continue from that position when the browser allows autoplay; otherwise press Play once and playback picks up where you left off.
 
 Provide accurate `durationSec` when queuing tracks so the wall-clock and timer paths stay aligned with real track length.
 

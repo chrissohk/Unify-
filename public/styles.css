@@ -3445,19 +3445,91 @@ img.provider-badge-soundcloud {
   display: none !important;
 }
 
-.library-group-title {
-  margin: 12px 0 6px;
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+.library-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
-.soundcloud-library-scroll .library-group-title:first-child,
-.spotify-library-scroll .library-group-title:first-child {
-  margin-top: 0;
+.library-group + .library-group {
+  margin-top: 10px;
+}
+
+.library-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-short) ease-out,
+    background-color var(--duration-short) ease-out;
+}
+
+.library-group-toggle:hover:not(:disabled) {
+  color: var(--color-text);
+}
+
+.spotify-library-groups .library-group-toggle:hover:not(:disabled) {
+  border-color: var(--color-spotify);
+}
+
+.soundcloud-library-groups .library-group-toggle:hover:not(:disabled) {
+  border-color: var(--color-soundcloud);
+}
+
+.library-group-toggle__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.library-group-toggle__meta {
+  flex: 0 0 auto;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.library-group-toggle__meta:empty {
+  display: none;
+}
+
+.library-group-toggle__chevron {
+  flex: 0 0 auto;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--color-text-muted);
+  transition: transform var(--duration-short) ease-out;
+}
+
+.library-group-toggle[aria-expanded="true"] .library-group-toggle__chevron {
+  transform: rotate(180deg);
+}
+
+.library-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.library-group--collapsed .library-group-body {
+  display: none;
 }
 
 .playlist-pane,

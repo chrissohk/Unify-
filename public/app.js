@@ -1266,7 +1266,12 @@ const spotifyReloadSnap = () => {
       writeSpotifyReloadSnapshot: () => {},
       readSpotifyReloadSnapshot: () => null,
       clearSpotifyReloadSnapshot: () => {},
-      resolveSpotifyResumePositionMs: () => 0
+      writeSoundCloudReloadSnapshot: () => {},
+      readSoundCloudReloadSnapshot: () => null,
+      clearSoundCloudReloadSnapshot: () => {},
+      resolveSpotifyResumePositionMs: () => 0,
+      resolveResumePositionMs: () => 0,
+      soundCloudSnapshotMatchesItem: () => false
     }
   );
 };
@@ -1487,6 +1492,7 @@ const applySoundCloudPlaybackState = (partial) => {
     if (!("paused" in partial) && !("positionMs" in partial) && !("durationMs" in partial) && !("coverUrl" in partial)) {
       patchSoundCloudPanelDom(cur);
     }
+    flushSoundCloudReloadSnapshot();
   }
 };
 
@@ -1578,12 +1584,37 @@ const teardownSoundCloudWidget = () => {
   soundcloudSeekDragging = false;
 };
 
+const applySoundCloudReloadResumeOnReady = (widget, item) => {
+  const snap = readSoundCloudReloadSnapForItem(item);
+  if (!snap) return;
+  const resumeMs = spotifyReloadSnap().resolveResumePositionMs(
+    { trackId: item.trackId, index: queueState.currentIndex, durationSec: item.durationSec },
+    snap
+  );
+  if (resumeMs > 0) {
+    try {
+      widget.seekTo(resumeMs);
+    } catch (_) {}
+    applySoundCloudPlaybackState({ positionMs: resumeMs });
+  }
+  if (!snap.paused) {
+    widget.isPaused((paused) => {
+      if (paused) {
+        try {
+          widget.play();
+        } catch (_) {}
+      }
+    });
+  }
+};
+
 const attachSoundCloudWidget = (item) => {
   if (item.provider !== "soundcloud" || !item.permalinkUrl) return;
   const iframe = playerHost.querySelector("iframe.sc-widget");
   if (!iframe || !window.SC?.Widget) return;
   const widget = window.SC.Widget(iframe);
   const E = window.SC.Widget.Events;
+  const reloadSnap = readSoundCloudReloadSnapForItem(item);
 
   const onFinish = () => {
     if (advanceTrackInFlight) return;
@@ -1598,6 +1629,7 @@ const attachSoundCloudWidget = (item) => {
     widget.getDuration((durationMs) => {
       applySoundCloudPlaybackState({ durationMs: Number(durationMs) || 0 });
     });
+    applySoundCloudReloadResumeOnReady(widget, item);
     widget.getPosition((positionMs) => {
       applySoundCloudPlaybackState({ positionMs: Number(positionMs) || 0 });
     });
@@ -1641,11 +1673,16 @@ const attachSoundCloudWidget = (item) => {
   const embedded = iframe.getAttribute("data-sc-permalink");
   if (embedded !== wantPermalink) {
     try {
-      widget.load(item.permalinkUrl, { auto_play: true });
+      const autoPlay = reloadSnap ? !reloadSnap.paused : true;
+      widget.load(item.permalinkUrl, { auto_play: autoPlay });
       iframe.setAttribute("data-sc-permalink", wantPermalink);
     } catch (_) {}
   } else {
     widget.isPaused((paused) => {
+      if (reloadSnap) {
+        applySoundCloudReloadResumeOnReady(widget, item);
+        return;
+      }
       if (paused) {
         try {
           widget.play();
@@ -1674,6 +1711,7 @@ const soundCloudSeek = (ms) => {
   const target = Math.max(0, Math.round(Number(ms) || 0));
   widget.seekTo(target);
   applySoundCloudPlaybackState({ positionMs: target });
+  flushSoundCloudReloadSnapshot();
 };
 
 const wireSoundCloudPanelControls = (item) => {
@@ -1790,6 +1828,34 @@ const flushSpotifyReloadSnapshot = () => {
 
 const clearSpotifyReloadSnapshotForQueueChange = () => {
   spotifyReloadSnap().clearSpotifyReloadSnapshot(sessionStorage);
+  spotifyReloadSnap().clearSoundCloudReloadSnapshot(sessionStorage);
+};
+
+const flushSoundCloudReloadSnapshot = () => {
+  const idx = queueState.currentIndex;
+  if (idx < 0 || idx >= queueState.queue.length) return;
+  const item = queueState.queue[idx];
+  if (item.provider !== "soundcloud" || !item.trackId) return;
+  const pos =
+    soundcloudPlaybackState?.positionMs != null
+      ? Number(soundcloudPlaybackState.positionMs)
+      : spotifyReloadSnap().readSoundCloudReloadSnapshot(sessionStorage)?.positionMs ?? 0;
+  spotifyReloadSnap().writeSoundCloudReloadSnapshot(sessionStorage, {
+    index: idx,
+    trackId: item.trackId,
+    positionMs: pos,
+    durationMs:
+      soundcloudPlaybackState?.durationMs ||
+      Math.max(0, Math.round(Number(item.durationSec) || 0) * 1000),
+    paused: soundcloudPlaybackState?.paused ?? true,
+    permalink: item.permalinkUrl || undefined
+  });
+};
+
+const readSoundCloudReloadSnapForItem = (item) => {
+  if (!item || item.provider !== "soundcloud") return null;
+  const snap = spotifyReloadSnap().readSoundCloudReloadSnapshot(sessionStorage);
+  return spotifyReloadSnap().soundCloudSnapshotMatchesItem(item, snap) ? snap : null;
 };
 
 const isSpotifyProviderConnected = () =>
@@ -1812,20 +1878,41 @@ const maybeBootstrapSpotifyAfterQueueLoad = () => {
   const item = queueState.queue[idx];
   if (item.provider !== "spotify" || !isSpotifyProviderConnected()) return;
   const snap = spotifyReloadSnap().readSpotifyReloadSnapshot(sessionStorage);
-  if (snap?.trackId === item.trackId) {
+  const matched = snap?.trackId === item.trackId;
+  if (matched) {
     spotifyPlaybackState = {
       positionMs: snap.positionMs,
       durationMs: snap.durationMs || Math.max(0, Math.round(Number(item.durationSec) || 0) * 1000),
-      paused: true,
+      paused: snap.paused,
       currentTrackId: item.trackId,
       trackName: item.title,
       artist: item.artist,
       albumImage: null
     };
+    spotifyPausedByUser = snap.paused;
+    if (!snap.paused) {
+      spotifyPlaybackPendingUserResume = true;
+    }
   }
-  spotifyReloadNeedsUserResume = true;
-  spotifyPausedByUser = true;
-  renderNowPlaying();
+  spotifyReloadNeedsUserResume = matched;
+};
+
+const maybeBootstrapSoundCloudAfterQueueLoad = () => {
+  const idx = queueState.currentIndex;
+  if (idx < 0 || idx >= queueState.queue.length) return;
+  const item = queueState.queue[idx];
+  if (item.provider !== "soundcloud") return;
+  const snap = readSoundCloudReloadSnapForItem(item);
+  if (!snap) return;
+  soundcloudPlaybackState = {
+    positionMs: snap.positionMs,
+    durationMs: snap.durationMs || Math.max(0, Number(item.durationSec || 0) * 1000),
+    paused: snap.paused,
+    coverUrl: item.imageUrl || undefined
+  };
+  if (playerHost?.querySelector?.(".soundcloud-sdk-panel")) {
+    patchSoundCloudPanelDom(item);
+  }
 };
 
 /** Same-track restart / loop: position jumped back near start after we were in the last seconds. */
@@ -2098,6 +2185,25 @@ const ensureSpotifyActivationGesture = async () => {
 
 const applySpotifyPlaybackState = (state) => {
   if (!state) return;
+  const idxGuard = queueState.currentIndex;
+  const curGuard =
+    idxGuard >= 0 && idxGuard < queueState.queue.length ? queueState.queue[idxGuard] : null;
+  if (curGuard?.provider === "spotify" && spotifyReloadNeedsUserResume) {
+    const snap = spotifyReloadSnap().readSpotifyReloadSnapshot(sessionStorage);
+    if (snap?.trackId === curGuard.trackId) {
+      const sdkId = state.track_window?.current_track?.id;
+      const sdkPos = Number(state.position) || 0;
+      if (!sdkId || sdkId === curGuard.trackId) {
+        if (sdkPos < snap.positionMs - 1500) {
+          state = {
+            ...state,
+            position: snap.positionMs,
+            paused: snap.paused ? true : state.paused
+          };
+        }
+      }
+    }
+  }
   lastSpotifyPlayerStateSnapshot = state;
   if (!state.paused) {
     spotifyPausedByUser = false;
@@ -2260,8 +2366,25 @@ const tryRestoreSpotifyAfterDeviceReady = async () => {
   if (idx < 0 || idx >= queueState.queue.length) return;
   const item = queueState.queue[idx];
   if (item.provider !== "spotify" || !item.trackId) return;
-  if (!spotifyPlaybackPendingUserResume) return;
-  await ensureSpotifyNowPlaying({ trackId: item.trackId, scheduleAdvance: true });
+
+  const snap = spotifyReloadSnap().readSpotifyReloadSnapshot(sessionStorage);
+  const wantAutoContinue =
+    spotifyPlaybackPendingUserResume ||
+    (spotifyReloadNeedsUserResume && snap?.trackId === item.trackId && !snap.paused);
+  if (!wantAutoContinue) return;
+
+  const positionMs = spotifyReloadSnap().resolveResumePositionMs(
+    { trackId: item.trackId, index: idx, durationSec: item.durationSec },
+    snap?.trackId === item.trackId ? snap : null,
+    spotifyPlaybackState?.positionMs
+  );
+
+  await ensureSpotifyNowPlaying({
+    trackId: item.trackId,
+    positionMs,
+    scheduleAdvance: true,
+    userInitiated: false
+  });
 };
 
 const ensureSpotifyNowPlaying = async ({
@@ -2498,6 +2621,8 @@ const fetchProviders = async () => {
 const fetchQueueState = async () => {
   const res = await apiFetch("/api/queue");
   queueState = await res.json();
+  maybeBootstrapSpotifyAfterQueueLoad();
+  maybeBootstrapSoundCloudAfterQueueLoad();
   renderNowPlaying();
   renderQueue();
 };
@@ -2899,8 +3024,8 @@ const advanceTrack = async (reason) => {
     renderQueue();
     if (idx >= 0 && idx < queueState.queue.length) {
       const item = queueState.queue[idx];
+      clearSpotifyReloadSnapshotForQueueChange();
       if (item.provider === "spotify") {
-        clearSpotifyReloadSnapshotForQueueChange();
         await playSpotifyTrack(item.trackId);
       }
     }
@@ -3371,10 +3496,15 @@ const renderNowPlaying = () => {
   }
   teardownSoundCloudWidget();
   if (item.provider === "soundcloud") {
+    const scSnap = readSoundCloudReloadSnapForItem(item);
     soundcloudPlaybackState = {
-      positionMs: 0,
-      durationMs: Math.max(0, Number(item.durationSec || 0) * 1000),
-      paused: true,
+      positionMs: scSnap ? scSnap.positionMs : 0,
+      durationMs:
+        (scSnap?.durationMs && scSnap.durationMs > 0
+          ? scSnap.durationMs
+          : Math.max(0, Number(item.durationSec || 0) * 1000)) ||
+        Math.max(0, Number(item.durationSec || 0) * 1000),
+      paused: scSnap ? scSnap.paused : true,
       coverUrl: item.imageUrl || undefined
     };
   }
@@ -3619,6 +3749,79 @@ const setSpotifyPlaylistStatus = (message = "") => {
   }
 };
 
+const LIBRARY_GROUP_STORAGE_KEY = "unifyLibraryGroupExpanded";
+
+const readLibraryGroupExpandedState = () => {
+  try {
+    const raw = sessionStorage.getItem(LIBRARY_GROUP_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const writeLibraryGroupExpandedState = (groupId, expanded) => {
+  const state = readLibraryGroupExpandedState();
+  state[groupId] = expanded;
+  try {
+    sessionStorage.setItem(LIBRARY_GROUP_STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    /* sessionStorage unavailable */
+  }
+};
+
+const formatLibraryGroupCountLabel = (count) => {
+  const n = Math.max(0, Number(count) || 0);
+  return n === 1 ? "1 playlist" : `${n} playlists`;
+};
+
+const setLibraryGroupExpanded = (groupEl, expanded) => {
+  if (!groupEl) return;
+  const toggle = groupEl.querySelector(".library-group-toggle");
+  const body = groupEl.querySelector(".library-group-body");
+  const isExpanded = Boolean(expanded);
+  groupEl.classList.toggle("library-group--collapsed", !isExpanded);
+  if (toggle) toggle.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+  if (body) {
+    body.hidden = !isExpanded;
+    body.setAttribute("aria-hidden", isExpanded ? "false" : "true");
+  }
+};
+
+const updateLibraryGroupMeta = (groupId, count) => {
+  const groupEl = document.querySelector(`[data-library-group="${groupId}"]`);
+  if (!groupEl) return;
+  const meta = groupEl.querySelector(".library-group-toggle__meta");
+  if (!meta) return;
+  const n = Math.max(0, Number(count) || 0);
+  if (n === 0) {
+    meta.textContent = "";
+    return;
+  }
+  meta.textContent = formatLibraryGroupCountLabel(n);
+};
+
+const initLibraryGroupToggles = (rootEl) => {
+  if (!rootEl) return;
+  const saved = readLibraryGroupExpandedState();
+  rootEl.querySelectorAll(".library-group[data-library-group]").forEach((groupEl) => {
+    const groupId = groupEl.getAttribute("data-library-group");
+    if (!groupId) return;
+    const toggle = groupEl.querySelector(".library-group-toggle");
+    if (!toggle || toggle.dataset.bound === "1") return;
+    toggle.dataset.bound = "1";
+    const expanded = Object.prototype.hasOwnProperty.call(saved, groupId) ? Boolean(saved[groupId]) : true;
+    setLibraryGroupExpanded(groupEl, expanded);
+    toggle.addEventListener("click", () => {
+      const next = groupEl.classList.contains("library-group--collapsed");
+      setLibraryGroupExpanded(groupEl, next);
+      writeLibraryGroupExpandedState(groupId, next);
+    });
+  });
+};
+
 const renderSpotifyLibraryRows = () => {
   if (spotifyLikedSongsList) {
     spotifyLikedSongsList.innerHTML = "";
@@ -3664,6 +3867,9 @@ const renderSpotifyLibraryRows = () => {
       );
     });
   }
+  updateLibraryGroupMeta("spotify-liked-songs", spotifyPlaylistBrowser.likedSongs ? 1 : 0);
+  updateLibraryGroupMeta("spotify-owned", spotifyPlaylistBrowser.items.length);
+  updateLibraryGroupMeta("spotify-liked", spotifyPlaylistBrowser.likedItems.length);
 };
 
 const filterPlaylistTracksFn =
@@ -4203,6 +4409,9 @@ const renderSoundCloudLibraryRows = () => {
       );
     });
   }
+  updateLibraryGroupMeta("soundcloud-likes", soundcloudPlaylistBrowser.likes ? 1 : 0);
+  updateLibraryGroupMeta("soundcloud-owned", soundcloudPlaylistBrowser.ownedItems.length);
+  updateLibraryGroupMeta("soundcloud-liked", soundcloudPlaylistBrowser.likedItems.length);
 };
 
 const renderSoundCloudPlaylistTracks = () => {
@@ -4537,6 +4746,9 @@ if (soundcloudTracksMore) {
   soundcloudTracksMore.addEventListener("click", () => void loadMoreSoundCloudPlaylistTracks());
 }
 
+initLibraryGroupToggles(spotifyLibraryGroups);
+initLibraryGroupToggles(soundcloudLibraryGroups);
+
 handleOAuthReturnParams();
 renderPlaybackDiag();
 renderSpotifySdkBanner();
@@ -4571,11 +4783,15 @@ bootstrapBrowserSession()
       }
     }, delay);
   }
-  maybeBootstrapSpotifyAfterQueueLoad();
 });
 
-window.addEventListener("pagehide", () => flushSpotifyReloadSnapshot());
-window.addEventListener("beforeunload", () => flushSpotifyReloadSnapshot());
+const flushReloadSnapshotsOnExit = () => {
+  flushSpotifyReloadSnapshot();
+  flushSoundCloudReloadSnapshot();
+};
+
+window.addEventListener("pagehide", flushReloadSnapshotsOnExit);
+window.addEventListener("beforeunload", flushReloadSnapshotsOnExit);
 
 setInterval(() => {
   if (spotifySeekDragging) return;
@@ -4591,6 +4807,7 @@ setInterval(() => {
   const idx = queueState.currentIndex;
   if (idx >= 0 && queueState.queue[idx]?.provider === "spotify") {
     const cur = queueState.queue[idx];
+    flushSpotifyReloadSnapshot();
     if (!patchSpotifyNowPlayingPanel(cur)) {
       renderNowPlaying();
     } else {

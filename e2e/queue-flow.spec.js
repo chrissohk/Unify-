@@ -152,4 +152,34 @@ test.describe("unified queue", () => {
     await page.keyboard.press("Escape");
     await expect(page.locator("body")).not.toHaveClass(/now-playing-theater-open/);
   });
+
+  test("reload restores Spotify seek position from session snapshot", async ({ page, request }) => {
+    await request.post("/api/auth/spotify/connect");
+    await request.post("/api/queue", { data: { provider: "spotify", trackId: "sp-1" } });
+    await request.post("/api/queue/now-playing", { data: { index: 0 } });
+
+    await page.goto("/");
+    await page.getByTestId("tab-now-playing").click();
+
+    await page.evaluate(() => {
+      sessionStorage.setItem(
+        "spotifyReloadResume",
+        JSON.stringify({
+          provider: "spotify",
+          index: 0,
+          trackId: "sp-1",
+          positionMs: 90500,
+          durationMs: 240000,
+          paused: true,
+          savedAt: Date.now()
+        })
+      );
+    });
+
+    await page.reload();
+    await page.getByTestId("tab-now-playing").click();
+
+    await expect(page.locator(".spotify-time-elapsed")).toHaveText("1:30");
+    await expect(page.getByTestId("spotify-seek")).toHaveAttribute("value", "90500");
+  });
 });

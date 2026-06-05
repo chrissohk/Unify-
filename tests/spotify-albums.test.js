@@ -54,13 +54,27 @@ test("spotifySearchAlbums maps album search results", async () => {
   }
 });
 
-test("spotifyListAlbumTracks maps album track pages", async () => {
+test("spotifyListAlbumTracks stamps album cover without batch track image fetch", async () => {
   const originalFetch = global.fetch;
   const exp = nowSec() + 7200;
   const sessions = { spotify: { accessToken: "access", expiresAt: exp } };
   const persist = () => {};
+  const fetchUrls = [];
   global.fetch = async (url) => {
     const u = String(url);
+    fetchUrls.push(u);
+    if (u.match(/\/v1\/albums\/al1(\?|$)/) && !u.includes("/tracks")) {
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({
+          id: "al1",
+          images: [{ url: "https://i.scdn.co/image/al-cover.jpg", height: 64, width: 64 }]
+        }),
+        text: async () => ""
+      };
+    }
     if (u.includes("/v1/albums/al1/tracks")) {
       return {
         ok: true,
@@ -72,16 +86,16 @@ test("spotifyListAlbumTracks maps album track pages", async () => {
               id: "tr1",
               name: "You Oughta Know",
               duration_ms: 249000,
-              artists: [{ name: "Alanis Morissette" }],
-              album: {
-                images: [{ url: "https://i.scdn.co/image/tr.jpg", height: 64, width: 64 }]
-              }
+              artists: [{ name: "Alanis Morissette" }]
             }
           ],
           next: null
         }),
         text: async () => ""
       };
+    }
+    if (u.includes("/v1/tracks?ids=")) {
+      throw new Error("album track load must not batch-fetch track images");
     }
     throw new Error(`unexpected fetch: ${u}`);
   };
@@ -97,7 +111,9 @@ test("spotifyListAlbumTracks maps album track pages", async () => {
     assert.equal(r.results.length, 1);
     assert.equal(r.results[0].id, "tr1");
     assert.equal(r.results[0].title, "You Oughta Know");
+    assert.equal(r.results[0].imageUrl, "https://i.scdn.co/image/al-cover.jpg");
     assert.equal(r.nextOffset, null);
+    assert.equal(fetchUrls.some((u) => u.includes("/v1/tracks?ids=")), false);
   } finally {
     global.fetch = originalFetch;
   }
@@ -139,4 +155,50 @@ test("GET /api/spotify/albums/:id/tracks demo vs unknown id", async () => {
     .expect(({ body }) => {
       assert.equal(body.code, "SPOTIFY_ALBUM_NOT_FOUND");
     });
+});
+
+test("mapSpotifyBrowseError uses album-specific message for album 403", () => {
+  const { mapSpotifyBrowseError } = require("../server");
+  assert.equal(typeof mapSpotifyBrowseError, "function");
+  const res = {
+    statusCode: null,
+    body: null,
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(payload) {
+      this.body = payload;
+      return this;
+    },
+    set() {
+      return this;
+    }
+  };
+  mapSpotifyBrowseError(res, { status: 403, code: "SPOTIFY_ALBUM_TRACKS_FAILED", details: "forbidden" }, "SPOTIFY_ALBUM_TRACKS_FAILED");
+  assert.equal(res.statusCode, 403);
+  assert.match(res.body.error, /album/i);
+  assert.doesNotMatch(res.body.error, /playlist you own/i);
+});
+
+test("mapSpotifyBrowseError uses album-specific message for album 502", () => {
+  const { mapSpotifyBrowseError } = require("../server");
+  const res = {
+    statusCode: null,
+    body: null,
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(payload) {
+      this.body = payload;
+      return this;
+    },
+    set() {
+      return this;
+    }
+  };
+  mapSpotifyBrowseError(res, { status: 502, code: "SPOTIFY_ALBUM_TRACKS_FAILED" }, "SPOTIFY_ALBUM_TRACKS_FAILED");
+  assert.equal(res.statusCode, 502);
+  assert.equal(res.body.error, "Could not load album tracks from Spotify.");
 });

@@ -339,10 +339,21 @@ function mapSpotifyBrowseError(res, liveResult, fallbackCode) {
   const code = liveResult?.code || fallbackCode;
   const details = truncateSpotifyDetails(liveResult?.details || liveResult?.message);
   const withDetails = (body) => (details ? { ...body, details } : body);
+  const isAlbumContext =
+    fallbackCode === "SPOTIFY_ALBUM_TRACKS_FAILED" || code === "SPOTIFY_ALBUM_TRACKS_FAILED";
   if (status === 401) {
     return res.status(401).json(withDetails({ error: "spotify authorization expired", code }));
   }
   if (status === 403) {
+    if (isAlbumContext) {
+      return res.status(403).json(
+        withDetails({
+          error:
+            "Spotify denied access to this album's tracks — try reconnecting Spotify, or search for the album again.",
+          code
+        })
+      );
+    }
     const envMissingPlaylistScopes = !spotifyEnvIncludesPlaylistReadScopes();
     const detailText = String(liveResult?.details || "").toLowerCase();
     const notOwnerOrCollaborator =
@@ -373,7 +384,12 @@ function mapSpotifyBrowseError(res, liveResult, fallbackCode) {
       retryAfterSec: Number(retryAfterSec) || 60
     });
   }
-  return res.status(502).json(withDetails({ error: "spotify request failed", code }));
+  return res.status(502).json(
+    withDetails({
+      error: isAlbumContext ? "Could not load album tracks from Spotify." : "spotify request failed",
+      code
+    })
+  );
 }
 
 const setQueueState = (next) => {
@@ -1529,3 +1545,6 @@ if (require.main === module) {
 }
 
 module.exports = app;
+if (process.env.NODE_ENV === "test") {
+  module.exports.mapSpotifyBrowseError = mapSpotifyBrowseError;
+}

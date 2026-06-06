@@ -15,6 +15,7 @@ const spotifyAlbumHeroCover = document.getElementById("spotifyAlbumHeroCover");
 const spotifyAlbumHeroCoverFallback = document.getElementById("spotifyAlbumHeroCoverFallback");
 const spotifyAlbumHeroTitle = document.getElementById("spotifyAlbumHeroTitle");
 const spotifyAlbumHeroMeta = document.getElementById("spotifyAlbumHeroMeta");
+const spotifyAlbumQueueAll = document.getElementById("spotifyAlbumQueueAll");
 const spotifySelectedAlbumTitle = document.getElementById("spotifySelectedAlbumTitle");
 const spotifyAlbumTracksLoading = document.getElementById("spotifyAlbumTracksLoading");
 const spotifyAlbumTracksStatus = document.getElementById("spotifyAlbumTracksStatus");
@@ -23,6 +24,21 @@ const spotifyAlbumTracksMore = document.getElementById("spotifyAlbumTracksMore")
 const soundcloudSearchForm = document.getElementById("soundcloudSearchForm");
 const soundcloudSearchQuery = document.getElementById("soundcloudSearchQuery");
 const soundcloudSearchResults = document.getElementById("soundcloudSearchResults");
+const soundcloudSearchModeTracks = document.getElementById("soundcloudSearchModeTracks");
+const soundcloudSearchModeAlbums = document.getElementById("soundcloudSearchModeAlbums");
+const soundcloudSearchBrowse = document.getElementById("soundcloudSearchBrowse");
+const soundcloudAlbumTracksPanel = document.getElementById("soundcloudAlbumTracksPanel");
+const soundcloudAlbumBack = document.getElementById("soundcloudAlbumBack");
+const soundcloudAlbumHeroCover = document.getElementById("soundcloudAlbumHeroCover");
+const soundcloudAlbumHeroCoverFallback = document.getElementById("soundcloudAlbumHeroCoverFallback");
+const soundcloudAlbumHeroTitle = document.getElementById("soundcloudAlbumHeroTitle");
+const soundcloudAlbumHeroMeta = document.getElementById("soundcloudAlbumHeroMeta");
+const soundcloudAlbumQueueAll = document.getElementById("soundcloudAlbumQueueAll");
+const soundcloudSelectedAlbumTitle = document.getElementById("soundcloudSelectedAlbumTitle");
+const soundcloudAlbumTracksLoading = document.getElementById("soundcloudAlbumTracksLoading");
+const soundcloudAlbumTracksStatus = document.getElementById("soundcloudAlbumTracksStatus");
+const soundcloudAlbumTracks = document.getElementById("soundcloudAlbumTracks");
+const soundcloudAlbumTracksMore = document.getElementById("soundcloudAlbumTracksMore");
 const tabNowPlaying = document.getElementById("tab-now-playing");
 const tabSpotifySearch = document.getElementById("tab-spotify-search");
 const tabSoundcloudSearch = document.getElementById("tab-soundcloud-search");
@@ -834,13 +850,26 @@ let activeSpotifyResults = [];
 let activeSpotifyAlbumResults = [];
 let spotifySearchMode = "track";
 let activeSoundcloudResults = [];
+let activeSoundcloudAlbumResults = [];
+let soundcloudSearchMode = "track";
+/** SoundCloud album search browser (albums are playlist sets on SoundCloud). */
+let soundcloudAlbumBrowser = {
+  selectedId: null,
+  selectedTitle: "",
+  selectedAlbum: null,
+  selectedSecretToken: null,
+  tracks: [],
+  tracksNextOffset: null,
+  queueAllInProgress: false
+};
 /** Spotify album search browser (GET /api/spotify/albums/:id/tracks). */
 let spotifyAlbumBrowser = {
   selectedId: null,
   selectedTitle: "",
   selectedAlbum: null,
   tracks: [],
-  tracksNextOffset: null
+  tracksNextOffset: null,
+  queueAllInProgress: false
 };
 /** Spotify playlist browser (GET /api/spotify/playlists + tracks). */
 let spotifyPlaylistBrowser = {
@@ -3719,12 +3748,345 @@ const renderSpotifyAlbumSearchResults = () => {
 
 const renderSoundcloudSearchResults = () => {
   if (!soundcloudSearchResults) return;
+  if (soundcloudSearchMode === "album") {
+    renderSoundcloudAlbumSearchResults();
+    return;
+  }
   renderTrackList(soundcloudSearchResults, activeSoundcloudResults);
+};
+
+const appendSoundcloudAlbumRow = (ul, album) => {
+  if (!ul || !album) return;
+  const li = document.createElement("li");
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "playlist-row-btn";
+  const meta = [];
+  if (album.artist) meta.push(album.artist);
+  if (album.releaseYear) meta.push(album.releaseYear);
+  if (typeof album.trackCount === "number" && album.trackCount > 0) {
+    meta.push(`${album.trackCount} tracks`);
+  }
+  const suffix = meta.length ? ` · ${meta.join(" · ")}` : "";
+  btn.textContent = `${album.name || "Untitled"}${suffix}`;
+  btn.setAttribute("data-testid", "soundcloud-album-row");
+  btn.onclick = () => void selectSoundcloudAlbum(album);
+  li.appendChild(btn);
+  ul.appendChild(li);
+};
+
+const renderSoundcloudAlbumSearchResults = () => {
+  if (!soundcloudSearchResults) return;
+  soundcloudSearchResults.innerHTML = "";
+  if (!activeSoundcloudAlbumResults.length) return;
+  activeSoundcloudAlbumResults.forEach((album) => appendSoundcloudAlbumRow(soundcloudSearchResults, album));
+};
+
+const setSoundcloudSearchMode = (mode) => {
+  const nextMode = mode === "album" ? "album" : "track";
+  if (soundcloudAlbumBrowser.selectedId) {
+    hideSoundcloudAlbumTracksPane();
+  }
+  soundcloudSearchMode = nextMode;
+  if (soundcloudSearchModeTracks) {
+    const selected = nextMode === "track";
+    soundcloudSearchModeTracks.classList.toggle("is-selected", selected);
+    soundcloudSearchModeTracks.setAttribute("aria-selected", selected ? "true" : "false");
+  }
+  if (soundcloudSearchModeAlbums) {
+    const selected = nextMode === "album";
+    soundcloudSearchModeAlbums.classList.toggle("is-selected", selected);
+    soundcloudSearchModeAlbums.setAttribute("aria-selected", selected ? "true" : "false");
+  }
+  if (nextMode === "track") {
+    activeSoundcloudAlbumResults = [];
+  } else {
+    activeSoundcloudResults = [];
+  }
+  renderSoundcloudSearchResults();
+};
+
+const showSoundcloudSearchBrowse = () => {
+  if (soundcloudSearchBrowse) soundcloudSearchBrowse.hidden = false;
+  panelSoundcloudSearch?.classList.remove("is-album-detail-open");
+};
+
+const renderSoundcloudAlbumHero = (album) => {
+  const name = album?.name || "Untitled";
+  const artist = album?.artist || "";
+  const releaseYear = album?.releaseYear || "";
+  const trackCount =
+    typeof album?.trackCount === "number" && album.trackCount > 0 ? album.trackCount : null;
+  const imageUrl = String(album?.imageUrl || "").trim();
+
+  if (soundcloudAlbumHeroTitle) {
+    soundcloudAlbumHeroTitle.textContent = name;
+  }
+  if (soundcloudSelectedAlbumTitle) {
+    soundcloudSelectedAlbumTitle.textContent = name;
+  }
+  if (soundcloudAlbumHeroMeta) {
+    const meta = [];
+    if (artist) meta.push(artist);
+    if (releaseYear) meta.push(releaseYear);
+    if (trackCount) meta.push(`${trackCount} tracks`);
+    soundcloudAlbumHeroMeta.textContent = meta.join(" · ");
+  }
+  if (soundcloudAlbumHeroCover) {
+    if (imageUrl) {
+      soundcloudAlbumHeroCover.src = imageUrl;
+      soundcloudAlbumHeroCover.alt = `${name} cover art`;
+      soundcloudAlbumHeroCover.hidden = false;
+    } else {
+      soundcloudAlbumHeroCover.removeAttribute("src");
+      soundcloudAlbumHeroCover.alt = "";
+      soundcloudAlbumHeroCover.hidden = true;
+    }
+  }
+  if (soundcloudAlbumHeroCoverFallback) {
+    soundcloudAlbumHeroCoverFallback.hidden = Boolean(imageUrl);
+  }
+};
+
+const clearSoundcloudAlbumHero = () => {
+  if (soundcloudAlbumHeroTitle) soundcloudAlbumHeroTitle.textContent = "";
+  if (soundcloudAlbumHeroMeta) soundcloudAlbumHeroMeta.textContent = "";
+  if (soundcloudSelectedAlbumTitle) soundcloudSelectedAlbumTitle.textContent = "Album tracks";
+  if (soundcloudAlbumHeroCover) {
+    soundcloudAlbumHeroCover.removeAttribute("src");
+    soundcloudAlbumHeroCover.alt = "";
+    soundcloudAlbumHeroCover.hidden = true;
+  }
+  if (soundcloudAlbumHeroCoverFallback) soundcloudAlbumHeroCoverFallback.hidden = false;
+};
+
+const showSoundcloudAlbumDetail = (album) => {
+  if (soundcloudSearchBrowse) soundcloudSearchBrowse.hidden = true;
+  if (soundcloudAlbumTracksPanel) soundcloudAlbumTracksPanel.hidden = false;
+  panelSoundcloudSearch?.classList.add("is-album-detail-open");
+  renderSoundcloudAlbumHero(album);
+  updateSoundcloudAlbumQueueAllButton();
+};
+
+const updateSoundcloudAlbumQueueAllButton = () => {
+  if (!soundcloudAlbumQueueAll) return;
+  const hasTracks = soundcloudAlbumBrowser.tracks.length > 0;
+  const panelOpen = Boolean(soundcloudAlbumBrowser.selectedId);
+  const tracksLoading = soundcloudAlbumTracksPanel?.classList.contains("is-tracks-loading");
+  const busy = soundcloudAlbumBrowser.queueAllInProgress;
+  soundcloudAlbumQueueAll.hidden = !panelOpen;
+  soundcloudAlbumQueueAll.disabled = !hasTracks || Boolean(tracksLoading) || busy;
+  if (!busy) {
+    soundcloudAlbumQueueAll.textContent = "Queue album";
+  }
+};
+
+const setSoundcloudAlbumQueueAllBusy = (busy) => {
+  soundcloudAlbumBrowser.queueAllInProgress = Boolean(busy);
+  if (soundcloudAlbumQueueAll) {
+    if (busy) {
+      soundcloudAlbumQueueAll.disabled = true;
+      soundcloudAlbumQueueAll.textContent = "Queuing album…";
+    }
+  }
+  updateSoundcloudAlbumQueueAllButton();
+};
+
+const setSoundcloudAlbumTracksLoading = (loading) => {
+  if (soundcloudAlbumTracksPanel) {
+    soundcloudAlbumTracksPanel.classList.toggle("is-tracks-loading", Boolean(loading));
+  }
+  if (soundcloudAlbumTracksLoading) {
+    soundcloudAlbumTracksLoading.hidden = !loading;
+    soundcloudAlbumTracksLoading.setAttribute("aria-hidden", loading ? "false" : "true");
+  }
+  if (soundcloudAlbumTracks) {
+    soundcloudAlbumTracks.hidden = loading;
+    soundcloudAlbumTracks.setAttribute("aria-hidden", loading ? "true" : "false");
+  }
+  if (soundcloudAlbumTracksMore && loading) {
+    soundcloudAlbumTracksMore.hidden = true;
+  }
+  if (soundcloudAlbumTracksStatus) {
+    if (loading) {
+      soundcloudAlbumTracksStatus.textContent = "";
+      soundcloudAlbumTracksStatus.hidden = true;
+    } else if (!soundcloudAlbumTracksStatus.textContent) {
+      soundcloudAlbumTracksStatus.hidden = true;
+    }
+  }
+  updateSoundcloudAlbumQueueAllButton();
+};
+
+const hideSoundcloudAlbumTracksPane = () => {
+  setSoundcloudAlbumTracksLoading(false);
+  if (soundcloudAlbumTracksPanel) soundcloudAlbumTracksPanel.hidden = true;
+  showSoundcloudSearchBrowse();
+  clearSoundcloudAlbumHero();
+  soundcloudAlbumBrowser.selectedId = null;
+  soundcloudAlbumBrowser.selectedTitle = "";
+  soundcloudAlbumBrowser.selectedAlbum = null;
+  soundcloudAlbumBrowser.selectedSecretToken = null;
+  soundcloudAlbumBrowser.tracks = [];
+  soundcloudAlbumBrowser.tracksNextOffset = null;
+  soundcloudAlbumBrowser.queueAllInProgress = false;
+  updateSoundcloudAlbumQueueAllButton();
+};
+
+const fetchSoundcloudAlbumTracksPage = async (albumId, offset, secretToken) =>
+  fetchSoundCloudPlaylistTracksPage(albumId, offset, secretToken);
+
+const renderSoundcloudAlbumTracks = () => {
+  if (!soundcloudAlbumTracks) return;
+  renderTrackList(soundcloudAlbumTracks, soundcloudAlbumBrowser.tracks);
+  updateSoundcloudAlbumQueueAllButton();
+};
+
+const ensureAllSoundcloudAlbumTracksLoaded = async () => {
+  if (!soundcloudAlbumBrowser.selectedId) return;
+  while (soundcloudAlbumBrowser.tracksNextOffset !== null) {
+    const data = await fetchSoundcloudAlbumTracksPage(
+      soundcloudAlbumBrowser.selectedId,
+      soundcloudAlbumBrowser.tracksNextOffset,
+      soundcloudAlbumBrowser.selectedSecretToken
+    );
+    const more = data.results || [];
+    soundcloudAlbumBrowser.tracks = soundcloudAlbumBrowser.tracks.concat(more);
+    soundcloudAlbumBrowser.tracksNextOffset =
+      data.nextOffset === null || data.nextOffset === undefined ? null : data.nextOffset;
+    renderSoundcloudAlbumTracks();
+    if (soundcloudAlbumTracksMore) {
+      soundcloudAlbumTracksMore.hidden = soundcloudAlbumBrowser.tracksNextOffset === null;
+    }
+  }
+};
+
+const queueSoundcloudAlbum = async () => {
+  if (
+    !soundcloudAlbumBrowser.selectedId ||
+    soundcloudAlbumBrowser.queueAllInProgress ||
+    soundcloudAlbumTracksPanel?.classList.contains("is-tracks-loading")
+  ) {
+    return;
+  }
+  setSoundcloudAlbumQueueAllBusy(true);
+  if (soundcloudAlbumTracksStatus) {
+    soundcloudAlbumTracksStatus.textContent = "";
+    soundcloudAlbumTracksStatus.hidden = true;
+  }
+  try {
+    await ensureAllSoundcloudAlbumTracksLoaded();
+    const tracks = soundcloudAlbumBrowser.tracks;
+    if (!tracks.length) {
+      alert("No tracks to queue.");
+      return;
+    }
+    let queued = 0;
+    for (const track of tracks) {
+      const ok = await queueTrackPayload({
+        provider: track.provider || "soundcloud",
+        trackId: track.id,
+        title: track.title,
+        artist: track.artist,
+        durationSec: track.durationSec,
+        permalinkUrl: track.permalinkUrl,
+        imageUrl: track.imageUrl
+      });
+      if (!ok) {
+        if (queued > 0) {
+          alert(`Queued ${queued} of ${tracks.length} tracks before an error occurred.`);
+        }
+        return;
+      }
+      queued += 1;
+    }
+    if (soundcloudAlbumTracksStatus) {
+      const label = queued === 1 ? "1 track" : `${queued} tracks`;
+      soundcloudAlbumTracksStatus.textContent = `Queued ${label} from this album.`;
+      soundcloudAlbumTracksStatus.hidden = false;
+    }
+  } catch (e) {
+    alertUnlessAuthNotice("soundcloud", e.message, "Failed to queue album");
+  } finally {
+    setSoundcloudAlbumQueueAllBusy(false);
+  }
+};
+
+const selectSoundcloudAlbum = async (album) => {
+  if (!soundcloudAlbumTracksPanel || !soundcloudAlbumTracks || !album?.id) return;
+  const albumId = album.id;
+  const albumName = album.name || "";
+  soundcloudAlbumBrowser.selectedId = albumId;
+  soundcloudAlbumBrowser.selectedTitle = albumName;
+  soundcloudAlbumBrowser.selectedAlbum = album;
+  soundcloudAlbumBrowser.selectedSecretToken = album.secretToken || null;
+  soundcloudAlbumBrowser.tracks = [];
+  soundcloudAlbumBrowser.tracksNextOffset = null;
+  showSoundcloudAlbumDetail(album);
+  soundcloudAlbumTracks.innerHTML = "";
+  setSoundcloudAlbumTracksLoading(true);
+  if (soundcloudAlbumTracksMore) soundcloudAlbumTracksMore.hidden = true;
+  soundcloudAlbumTracksPanel?.scrollIntoView({ block: "start", behavior: "smooth" });
+  try {
+    const data = await fetchSoundcloudAlbumTracksPage(
+      albumId,
+      0,
+      soundcloudAlbumBrowser.selectedSecretToken
+    );
+    soundcloudAlbumBrowser.tracks = data.results || [];
+    soundcloudAlbumBrowser.tracksNextOffset =
+      data.nextOffset === null || data.nextOffset === undefined ? null : data.nextOffset;
+    renderSoundcloudAlbumTracks();
+    setSoundcloudAlbumTracksLoading(false);
+    if (soundcloudAlbumTracksStatus) {
+      soundcloudAlbumTracksStatus.textContent = "";
+    }
+    if (soundcloudAlbumTracksMore) {
+      soundcloudAlbumTracksMore.hidden = soundcloudAlbumBrowser.tracksNextOffset === null;
+    }
+  } catch (e) {
+    setSoundcloudAlbumTracksLoading(false);
+    if (soundcloudAlbumTracksStatus) {
+      soundcloudAlbumTracksStatus.textContent = "";
+    }
+    alertUnlessAuthNotice("soundcloud", e.message, "Failed to load album tracks");
+  }
+};
+
+const loadMoreSoundcloudAlbumTracks = async () => {
+  if (
+    !soundcloudAlbumTracksMore ||
+    !soundcloudAlbumBrowser.selectedId ||
+    soundcloudAlbumBrowser.tracksNextOffset === null
+  ) {
+    return;
+  }
+  soundcloudAlbumTracksMore.disabled = true;
+  try {
+    const data = await fetchSoundcloudAlbumTracksPage(
+      soundcloudAlbumBrowser.selectedId,
+      soundcloudAlbumBrowser.tracksNextOffset,
+      soundcloudAlbumBrowser.selectedSecretToken
+    );
+    const more = data.results || [];
+    soundcloudAlbumBrowser.tracks = soundcloudAlbumBrowser.tracks.concat(more);
+    soundcloudAlbumBrowser.tracksNextOffset =
+      data.nextOffset === null || data.nextOffset === undefined ? null : data.nextOffset;
+    renderSoundcloudAlbumTracks();
+    if (soundcloudAlbumTracksStatus) {
+      soundcloudAlbumTracksStatus.textContent = "";
+    }
+    soundcloudAlbumTracksMore.hidden = soundcloudAlbumBrowser.tracksNextOffset === null;
+  } catch (e) {
+    alertUnlessAuthNotice("soundcloud", e.message, "Load more failed");
+  } finally {
+    soundcloudAlbumTracksMore.disabled = false;
+  }
 };
 
 const runProviderSearch = async (provider, query, onResults, options = {}) => {
   let path = `/api/provider/${provider}/search?q=${encodeURIComponent(query)}`;
-  if (provider === "spotify" && options.type === "album") {
+  if (options.type === "album") {
     path += "&type=album";
   }
   const response = await apiFetch(path);
@@ -3823,6 +4185,31 @@ const showSpotifyAlbumDetail = (album) => {
   if (spotifyAlbumTracksPanel) spotifyAlbumTracksPanel.hidden = false;
   panelSpotifySearch?.classList.add("is-album-detail-open");
   renderSpotifyAlbumHero(album);
+  updateSpotifyAlbumQueueAllButton();
+};
+
+const updateSpotifyAlbumQueueAllButton = () => {
+  if (!spotifyAlbumQueueAll) return;
+  const hasTracks = spotifyAlbumBrowser.tracks.length > 0;
+  const panelOpen = Boolean(spotifyAlbumBrowser.selectedId);
+  const tracksLoading = spotifyAlbumTracksPanel?.classList.contains("is-tracks-loading");
+  const busy = spotifyAlbumBrowser.queueAllInProgress;
+  spotifyAlbumQueueAll.hidden = !panelOpen;
+  spotifyAlbumQueueAll.disabled = !hasTracks || Boolean(tracksLoading) || busy;
+  if (!busy) {
+    spotifyAlbumQueueAll.textContent = "Queue album";
+  }
+};
+
+const setSpotifyAlbumQueueAllBusy = (busy) => {
+  spotifyAlbumBrowser.queueAllInProgress = Boolean(busy);
+  if (spotifyAlbumQueueAll) {
+    if (busy) {
+      spotifyAlbumQueueAll.disabled = true;
+      spotifyAlbumQueueAll.textContent = "Queuing album…";
+    }
+  }
+  updateSpotifyAlbumQueueAllButton();
 };
 
 const setSpotifyAlbumTracksLoading = (loading) => {
@@ -3848,6 +4235,7 @@ const setSpotifyAlbumTracksLoading = (loading) => {
       spotifyAlbumTracksStatus.hidden = true;
     }
   }
+  updateSpotifyAlbumQueueAllButton();
 };
 
 const hideSpotifyAlbumTracksPane = () => {
@@ -3860,6 +4248,8 @@ const hideSpotifyAlbumTracksPane = () => {
   spotifyAlbumBrowser.selectedAlbum = null;
   spotifyAlbumBrowser.tracks = [];
   spotifyAlbumBrowser.tracksNextOffset = null;
+  spotifyAlbumBrowser.queueAllInProgress = false;
+  updateSpotifyAlbumQueueAllButton();
 };
 
 const fetchSpotifyAlbumTracksPage = async (albumId, offset) => {
@@ -3875,6 +4265,75 @@ const fetchSpotifyAlbumTracksPage = async (albumId, offset) => {
 const renderSpotifyAlbumTracks = () => {
   if (!spotifyAlbumTracks) return;
   renderTrackList(spotifyAlbumTracks, spotifyAlbumBrowser.tracks);
+  updateSpotifyAlbumQueueAllButton();
+};
+
+const ensureAllSpotifyAlbumTracksLoaded = async () => {
+  if (!spotifyAlbumBrowser.selectedId) return;
+  while (spotifyAlbumBrowser.tracksNextOffset !== null) {
+    const data = await fetchSpotifyAlbumTracksPage(
+      spotifyAlbumBrowser.selectedId,
+      spotifyAlbumBrowser.tracksNextOffset
+    );
+    const more = data.results || [];
+    spotifyAlbumBrowser.tracks = spotifyAlbumBrowser.tracks.concat(more);
+    spotifyAlbumBrowser.tracksNextOffset =
+      data.nextOffset === null || data.nextOffset === undefined ? null : data.nextOffset;
+    renderSpotifyAlbumTracks();
+    if (spotifyAlbumTracksMore) {
+      spotifyAlbumTracksMore.hidden = spotifyAlbumBrowser.tracksNextOffset === null;
+    }
+  }
+};
+
+const queueSpotifyAlbum = async () => {
+  if (
+    !spotifyAlbumBrowser.selectedId ||
+    spotifyAlbumBrowser.queueAllInProgress ||
+    spotifyAlbumTracksPanel?.classList.contains("is-tracks-loading")
+  ) {
+    return;
+  }
+  setSpotifyAlbumQueueAllBusy(true);
+  if (spotifyAlbumTracksStatus) {
+    spotifyAlbumTracksStatus.textContent = "";
+    spotifyAlbumTracksStatus.hidden = true;
+  }
+  try {
+    await ensureAllSpotifyAlbumTracksLoaded();
+    const tracks = spotifyAlbumBrowser.tracks;
+    if (!tracks.length) {
+      alert("No tracks to queue.");
+      return;
+    }
+    let queued = 0;
+    for (const track of tracks) {
+      const ok = await queueTrackPayload({
+        provider: track.provider || "spotify",
+        trackId: track.id,
+        title: track.title,
+        artist: track.artist,
+        durationSec: track.durationSec,
+        imageUrl: track.imageUrl
+      });
+      if (!ok) {
+        if (queued > 0) {
+          alert(`Queued ${queued} of ${tracks.length} tracks before an error occurred.`);
+        }
+        return;
+      }
+      queued += 1;
+    }
+    if (spotifyAlbumTracksStatus) {
+      const label = queued === 1 ? "1 track" : `${queued} tracks`;
+      spotifyAlbumTracksStatus.textContent = `Queued ${label} from this album.`;
+      spotifyAlbumTracksStatus.hidden = false;
+    }
+  } catch (e) {
+    alertUnlessAuthNotice("spotify", e.message, "Failed to queue album");
+  } finally {
+    setSpotifyAlbumQueueAllBusy(false);
+  }
 };
 
 const selectSpotifyAlbum = async (album) => {
@@ -4993,10 +5452,35 @@ if (spotifyAlbumBack) {
   spotifyAlbumBack.addEventListener("click", () => hideSpotifyAlbumTracksPane());
 }
 
+if (spotifyAlbumQueueAll) {
+  spotifyAlbumQueueAll.addEventListener("click", () => void queueSpotifyAlbum());
+}
+
+if (soundcloudSearchModeTracks) {
+  soundcloudSearchModeTracks.addEventListener("click", () => setSoundcloudSearchMode("track"));
+}
+if (soundcloudSearchModeAlbums) {
+  soundcloudSearchModeAlbums.addEventListener("click", () => setSoundcloudSearchMode("album"));
+}
+
 if (soundcloudSearchForm && soundcloudSearchQuery) {
   soundcloudSearchForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const query = soundcloudSearchQuery.value.trim();
+    if (soundcloudSearchMode === "album") {
+      hideSoundcloudAlbumTracksPane();
+      await runProviderSearch(
+        "soundcloud",
+        query,
+        (results) => {
+          activeSoundcloudAlbumResults = results;
+          renderSoundcloudSearchResults();
+        },
+        { type: "album" }
+      );
+      return;
+    }
+    hideSoundcloudAlbumTracksPane();
     await runProviderSearch("soundcloud", query, (results) => {
       activeSoundcloudResults = results;
       renderSoundcloudSearchResults();
@@ -5005,8 +5489,22 @@ if (soundcloudSearchForm && soundcloudSearchQuery) {
   soundcloudSearchQuery.addEventListener("input", () => {
     if (soundcloudSearchQuery.value.trim()) return;
     activeSoundcloudResults = [];
+    activeSoundcloudAlbumResults = [];
+    hideSoundcloudAlbumTracksPane();
     renderSoundcloudSearchResults();
   });
+}
+
+if (soundcloudAlbumTracksMore) {
+  soundcloudAlbumTracksMore.addEventListener("click", () => void loadMoreSoundcloudAlbumTracks());
+}
+
+if (soundcloudAlbumBack) {
+  soundcloudAlbumBack.addEventListener("click", () => hideSoundcloudAlbumTracksPane());
+}
+
+if (soundcloudAlbumQueueAll) {
+  soundcloudAlbumQueueAll.addEventListener("click", () => void queueSoundcloudAlbum());
 }
 
 if (spotifyPlaylistsMore) {

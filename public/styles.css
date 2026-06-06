@@ -1846,6 +1846,17 @@ body.now-playing-theater-open .now-playing-layout__artist {
   outline-offset: 2px;
 }
 
+#panel-soundcloud-search .search-mode-btn.is-selected {
+  color: #fff;
+  background: var(--color-soundcloud);
+  border-color: rgba(255, 85, 0, 0.45);
+}
+
+#panel-soundcloud-search .search-mode-btn:focus-visible {
+  outline: 2px solid var(--color-soundcloud);
+  outline-offset: 2px;
+}
+
 .spotify-search-browse[hidden],
 .spotify-album-detail[hidden] {
   display: none !important;
@@ -1856,7 +1867,8 @@ body.now-playing-theater-open .now-playing-layout__artist {
   gap: 10px;
 }
 
-#panel-spotify-search.is-album-detail-open .spotify-album-detail {
+#panel-spotify-search.is-album-detail-open .spotify-album-detail,
+#panel-soundcloud-search.is-album-detail-open .spotify-album-detail {
   margin-bottom: 16px;
 }
 
@@ -1905,6 +1917,11 @@ body.now-playing-theater-open .now-playing-layout__artist {
 
 #panel-spotify-search .spotify-album-detail__back:focus-visible {
   outline: 2px solid var(--color-spotify);
+  outline-offset: 2px;
+}
+
+#panel-soundcloud-search .spotify-album-detail__back:focus-visible {
+  outline: 2px solid var(--color-soundcloud);
   outline-offset: 2px;
 }
 
@@ -1971,8 +1988,59 @@ body.now-playing-theater-open .now-playing-layout__artist {
   line-height: 1.4;
 }
 
+.spotify-album-hero__queue-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+  min-height: 36px;
+  padding: 8px 14px;
+  border: 1px solid rgba(30, 215, 96, 0.45);
+  border-radius: var(--radius-sm);
+  background: var(--color-spotify);
+  color: #052e14;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--duration-micro) ease-out,
+    border-color var(--duration-micro) ease-out;
+}
+
+.spotify-album-hero__queue-btn[hidden] {
+  display: none !important;
+}
+
+.spotify-album-hero__queue-btn:hover:not(:disabled) {
+  background: #2ee66f;
+  border-color: rgba(30, 215, 96, 0.65);
+}
+
+#panel-spotify-search .spotify-album-hero__queue-btn:focus-visible {
+  outline: 2px solid var(--color-spotify);
+  outline-offset: 2px;
+}
+
+#panel-soundcloud-search .spotify-album-hero__queue-btn {
+  border-color: rgba(255, 85, 0, 0.45);
+  background: var(--color-soundcloud);
+  color: #fff;
+}
+
+#panel-soundcloud-search .spotify-album-hero__queue-btn:hover:not(:disabled) {
+  background: #ff6a1a;
+  border-color: rgba(255, 85, 0, 0.65);
+}
+
+#panel-soundcloud-search .spotify-album-hero__queue-btn:focus-visible {
+  outline: 2px solid var(--color-soundcloud);
+  outline-offset: 2px;
+}
+
 #panel-spotify-search .spotify-album-tracks-pane .playlist-row-btn:hover:not(:disabled) {
   border-color: var(--color-spotify);
+}
+
+#panel-soundcloud-search .spotify-album-tracks-pane .playlist-row-btn:hover:not(:disabled) {
+  border-color: var(--color-soundcloud);
 }
 
 form {

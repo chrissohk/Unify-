@@ -467,6 +467,15 @@
               <div class="spotify-album-hero__meta">
                 <h3 id="spotifyAlbumHeroTitle" class="spotify-album-hero__title" data-testid="spotify-album-hero-title"></h3>
                 <p id="spotifyAlbumHeroMeta" class="spotify-album-hero__subtitle" data-testid="spotify-album-hero-meta"></p>
+                <button
+                  type="button"
+                  id="spotifyAlbumQueueAll"
+                  class="spotify-album-hero__queue-btn"
+                  hidden
+                  data-testid="spotify-album-queue-all"
+                >
+                  Queue album
+                </button>
               </div>
             </div>
             <h3 id="spotifySelectedAlbumTitle" class="visually-hidden">Album tracks</h3>
@@ -688,6 +697,42 @@
               aria-label="SoundCloud account"
             ></div>
           </div>
+          <div
+            id="soundcloudSearchBrowse"
+            class="spotify-search-browse"
+            data-testid="soundcloud-search-browse"
+          >
+          <div
+            class="search-mode-toggle"
+            role="tablist"
+            aria-label="SoundCloud search type"
+            data-testid="soundcloud-search-mode-toggle"
+          >
+            <button
+              type="button"
+              id="soundcloudSearchModeTracks"
+              class="search-mode-btn is-selected"
+              role="tab"
+              aria-selected="true"
+              aria-controls="soundcloudSearchResults"
+              data-search-mode="track"
+              data-testid="soundcloud-search-mode-tracks"
+            >
+              Tracks
+            </button>
+            <button
+              type="button"
+              id="soundcloudSearchModeAlbums"
+              class="search-mode-btn"
+              role="tab"
+              aria-selected="false"
+              aria-controls="soundcloudSearchResults"
+              data-search-mode="album"
+              data-testid="soundcloud-search-mode-albums"
+            >
+              Albums
+            </button>
+          </div>
           <form id="soundcloudSearchForm" class="search-form">
             <div class="search-field">
               <svg
@@ -718,6 +763,102 @@
             <button type="submit" data-testid="soundcloud-search-submit">Search</button>
           </form>
           <ul id="soundcloudSearchResults" class="track-list"></ul>
+          </div>
+
+          <div
+            class="playlist-tracks-pane spotify-album-tracks-pane spotify-album-detail"
+            id="soundcloudAlbumTracksPanel"
+            hidden
+            data-testid="soundcloud-album-tracks-panel"
+          >
+            <button
+              type="button"
+              id="soundcloudAlbumBack"
+              class="spotify-album-detail__back"
+              data-testid="soundcloud-album-back"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path
+                  d="M15 18l-6-6 6-6"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              Back to albums
+            </button>
+            <div id="soundcloudAlbumHero" class="spotify-album-hero" data-testid="soundcloud-album-hero">
+              <div class="spotify-album-hero__cover-wrap">
+                <img
+                  id="soundcloudAlbumHeroCover"
+                  class="spotify-album-hero__cover"
+                  alt=""
+                  width="160"
+                  height="160"
+                  decoding="async"
+                  hidden
+                  data-testid="soundcloud-album-hero-cover"
+                />
+                <div
+                  id="soundcloudAlbumHeroCoverFallback"
+                  class="spotify-album-hero__cover spotify-album-hero__cover--fallback"
+                  aria-hidden="true"
+                  data-testid="soundcloud-album-hero-cover-fallback"
+                ></div>
+              </div>
+              <div class="spotify-album-hero__meta">
+                <h3 id="soundcloudAlbumHeroTitle" class="spotify-album-hero__title" data-testid="soundcloud-album-hero-title"></h3>
+                <p id="soundcloudAlbumHeroMeta" class="spotify-album-hero__subtitle" data-testid="soundcloud-album-hero-meta"></p>
+                <button
+                  type="button"
+                  id="soundcloudAlbumQueueAll"
+                  class="spotify-album-hero__queue-btn"
+                  hidden
+                  data-testid="soundcloud-album-queue-all"
+                >
+                  Queue album
+                </button>
+              </div>
+            </div>
+            <h3 id="soundcloudSelectedAlbumTitle" class="visually-hidden">Album tracks</h3>
+            <div
+              id="soundcloudAlbumTracksLoading"
+              class="playlist-loading playlist-tracks-loading"
+              hidden
+              aria-hidden="true"
+              data-testid="soundcloud-album-tracks-loading"
+            >
+              <div class="dot-spinner" role="status">
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span class="visually-hidden">Loading album tracks</span>
+              </div>
+            </div>
+            <p
+              id="soundcloudAlbumTracksStatus"
+              class="hint-text"
+              data-testid="soundcloud-album-tracks-status"
+              aria-live="polite"
+            ></p>
+            <ul id="soundcloudAlbumTracks" class="playlist-track-list track-list"></ul>
+            <button
+              type="button"
+              id="soundcloudAlbumTracksMore"
+              class="load-more-btn"
+              hidden
+              data-testid="soundcloud-album-tracks-more"
+            >
+              More tracks
+            </button>
+          </div>
 
           <div class="soundcloud-library-split library-split" aria-label="SoundCloud library">
             <div class="playlist-pane">

@@ -44,6 +44,7 @@ const {
 const {
   getSoundCloudAccessToken,
   soundCloudSearchTracks,
+  soundCloudSearchAlbums,
   soundCloudListLibrary,
   soundCloudListPlaylistTracksById,
   soundCloudEnrichPlaylistTrackCountsByRefs,
@@ -219,6 +220,7 @@ function spotifyTokenAllowsMockCatalog(tokenResult) {
 }
 
 const SOUNDCLOUD_DEMO_PLAYLIST_ID = "demo-playlist-sc";
+const SOUNDCLOUD_DEMO_ALBUM_ID = "demo-album-sc";
 
 function soundCloudTokenAllowsMockCatalog(tokenResult) {
   return (
@@ -277,10 +279,34 @@ function mockSoundCloudPlaylistTracks(playlistId) {
     imageUrl: t.imageUrl,
     provider: "soundcloud"
   }));
-  if (playlistId === SOUNDCLOUD_LIKES_ID || playlistId === SOUNDCLOUD_DEMO_PLAYLIST_ID) {
+  if (
+    playlistId === SOUNDCLOUD_LIKES_ID ||
+    playlistId === SOUNDCLOUD_DEMO_PLAYLIST_ID ||
+    playlistId === SOUNDCLOUD_DEMO_ALBUM_ID
+  ) {
     return tracks;
   }
   return null;
+}
+
+function mockSoundCloudAlbumSummaries(query) {
+  const sample = providers.soundcloud.tracks[0];
+  const album = {
+    id: SOUNDCLOUD_DEMO_ALBUM_ID,
+    name: "Demo album (OAuth Connect shows real SoundCloud albums)",
+    artist: sample?.artist || "Demo artist",
+    imageUrl: sample?.imageUrl,
+    releaseYear: "",
+    trackCount: providers.soundcloud.tracks.length,
+    provider: "soundcloud",
+    kind: "album"
+  };
+  if (!query) {
+    return [album];
+  }
+  const q = query.toLowerCase();
+  const haystack = `${album.name} ${album.artist}`.toLowerCase();
+  return haystack.includes(q) ? [album] : [];
 }
 
 function mapSoundCloudBrowseError(res, liveResult, fallbackCode) {
@@ -1210,6 +1236,7 @@ app.get("/api/provider/:provider/search", async (req, res) => {
   }
 
   if (provider === "soundcloud") {
+    const searchType = (req.query.type || "track").toString().toLowerCase() === "album" ? "album" : "track";
     const tokenResult = await getSoundCloudAccessToken({ sessions, persist });
     if (!tokenResult.ok) {
       const useMock =
@@ -1219,6 +1246,14 @@ app.get("/api/provider/:provider/search", async (req, res) => {
         if (randomFail(0.08)) {
           return res.status(429).json({ error: `${provider} rate limit`, code: "PROVIDER_RATE_LIMIT" });
         }
+        if (searchType === "album") {
+          return res.json({
+            provider,
+            kind: "album",
+            results: mockSoundCloudAlbumSummaries(query),
+            demoMode: true
+          });
+        }
         return res.json(mockCatalogSearch("soundcloud", query));
       }
       return res.status(401).json({
@@ -1227,10 +1262,12 @@ app.get("/api/provider/:provider/search", async (req, res) => {
       });
     }
 
-    let liveResult = await soundCloudSearchTracks({
+    const searchLimit = Number(req.query.limit || 10);
+    const searchFn = searchType === "album" ? soundCloudSearchAlbums : soundCloudSearchTracks;
+    let liveResult = await searchFn({
       accessToken: tokenResult.accessToken,
       query,
-      limit: Number(req.query.limit || 10)
+      limit: searchLimit
     });
 
     if (!liveResult.ok && liveResult.status === 401) {
@@ -1241,10 +1278,10 @@ app.get("/api/provider/:provider/search", async (req, res) => {
           code: refreshResult.code || "SOUNDCLOUD_REFRESH_FAILED"
         });
       }
-      liveResult = await soundCloudSearchTracks({
+      liveResult = await searchFn({
         accessToken: refreshResult.accessToken,
         query,
-        limit: Number(req.query.limit || 10)
+        limit: searchLimit
       });
     }
 
@@ -1256,6 +1293,10 @@ app.get("/api/provider/:provider/search", async (req, res) => {
         return res.status(429).json({ error: "soundcloud rate limit", code: "SOUNDCLOUD_RATE_LIMIT" });
       }
       return res.status(502).json({ error: "soundcloud search failed", code: "SOUNDCLOUD_SEARCH_FAILED" });
+    }
+
+    if (searchType === "album") {
+      return res.json({ provider, kind: "album", results: liveResult.results });
     }
 
     return res.json({ provider, results: liveResult.results });

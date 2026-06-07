@@ -56,6 +56,7 @@ const spotifyLikedPlaylistsMore = document.getElementById("spotifyLikedPlaylists
 const spotifyPlaylistTracksPanel = document.getElementById("spotifyPlaylistTracksPanel");
 const spotifySelectedPlaylistTitle = document.getElementById("spotifySelectedPlaylistTitle");
 const spotifyPlaylistTrackFilter = document.getElementById("spotifyPlaylistTrackFilter");
+const spotifyPlaylistTrackSort = document.getElementById("spotifyPlaylistTrackSort");
 const spotifyPlaylistTracksStatus = document.getElementById("spotifyPlaylistTracksStatus");
 const spotifyPlaylistTracksLoading = document.getElementById("spotifyPlaylistTracksLoading");
 const spotifyPlaylistTracks = document.getElementById("spotifyPlaylistTracks");
@@ -70,6 +71,7 @@ const soundcloudLikedPlaylistsMore = document.getElementById("soundcloudLikedPla
 const soundcloudPlaylistTracksPanel = document.getElementById("soundcloudPlaylistTracksPanel");
 const soundcloudSelectedPlaylistTitle = document.getElementById("soundcloudSelectedPlaylistTitle");
 const soundcloudPlaylistTrackFilter = document.getElementById("soundcloudPlaylistTrackFilter");
+const soundcloudPlaylistTrackSort = document.getElementById("soundcloudPlaylistTrackSort");
 const soundcloudPlaylistTracksStatus = document.getElementById("soundcloudPlaylistTracksStatus");
 const soundcloudPlaylistTracksLoading = document.getElementById("soundcloudPlaylistTracksLoading");
 const soundcloudPlaylistTracks = document.getElementById("soundcloudPlaylistTracks");
@@ -885,9 +887,9 @@ let spotifyPlaylistBrowser = {
   selectedTitle: "",
   tracks: [],
   tracksNextOffset: null,
-  trackFilterQuery: ""
+  trackFilterQuery: "",
+  trackSortMode: "default"
 };
-/** Virtual id for Spotify Liked Songs (matches server SPOTIFY_LIKED_SONGS_ID). */
 const SPOTIFY_LIKED_SONGS_PLAYLIST_ID = "__liked_songs__";
 /** Virtual playlist id for liked tracks (matches server SOUNDCLOUD_LIKES_ID). */
 const SOUNDCLOUD_LIKES_PLAYLIST_ID = "__likes__";
@@ -905,7 +907,8 @@ let soundcloudPlaylistBrowser = {
   selectedSecretToken: null,
   tracks: [],
   tracksNextOffset: null,
-  trackFilterQuery: ""
+  trackFilterQuery: "",
+  trackSortMode: "default"
 };
 let reorderInFlight = false;
 /** Queue index while dragging an up-next row (HTML5 DnD). */
@@ -4608,8 +4611,50 @@ const filterPlaylistTracksFn =
         });
       };
 
-const getFilteredPlaylistTracks = (browser) =>
-  filterPlaylistTracksFn(browser.tracks, browser.trackFilterQuery);
+const sortPlaylistTracksFn =
+  typeof window !== "undefined" && window.SortPlaylistTracks?.sortPlaylistTracks
+    ? window.SortPlaylistTracks.sortPlaylistTracks
+    : (tracks, mode) => (Array.isArray(tracks) ? tracks : []);
+
+const getDisplayedPlaylistTracks = (browser) =>
+  sortPlaylistTracksFn(
+    filterPlaylistTracksFn(browser.tracks, browser.trackFilterQuery),
+    browser.trackSortMode
+  );
+
+const syncPlaylistTrackSortUi = (sortEl, mode) => {
+  if (!sortEl) return;
+  const nextMode = mode === "newest" || mode === "oldest" ? mode : "default";
+  sortEl.querySelectorAll("[data-track-sort]").forEach((btn) => {
+    const selected = btn.dataset.trackSort === nextMode;
+    btn.classList.toggle("is-selected", selected);
+    btn.setAttribute("aria-selected", selected ? "true" : "false");
+  });
+};
+
+const resetSpotifyPlaylistTrackSort = () => {
+  spotifyPlaylistBrowser.trackSortMode = "default";
+  syncPlaylistTrackSortUi(spotifyPlaylistTrackSort, "default");
+};
+
+const resetSoundCloudPlaylistTrackSort = () => {
+  soundcloudPlaylistBrowser.trackSortMode = "default";
+  syncPlaylistTrackSortUi(soundcloudPlaylistTrackSort, "default");
+};
+
+const setSpotifyPlaylistTrackSort = (mode) => {
+  const nextMode = mode === "newest" || mode === "oldest" ? mode : "default";
+  spotifyPlaylistBrowser.trackSortMode = nextMode;
+  syncPlaylistTrackSortUi(spotifyPlaylistTrackSort, nextMode);
+  renderSpotifyPlaylistTracks();
+};
+
+const setSoundCloudPlaylistTrackSort = (mode) => {
+  const nextMode = mode === "newest" || mode === "oldest" ? mode : "default";
+  soundcloudPlaylistBrowser.trackSortMode = nextMode;
+  syncPlaylistTrackSortUi(soundcloudPlaylistTrackSort, nextMode);
+  renderSoundCloudPlaylistTracks();
+};
 
 const syncPlaylistTracksFilterStatus = (statusEl, query, filteredCount) => {
   if (!statusEl) return;
@@ -4636,21 +4681,23 @@ const syncPlaylistTracksFilterStatus = (statusEl, query, filteredCount) => {
 const clearSpotifyPlaylistTrackFilter = () => {
   spotifyPlaylistBrowser.trackFilterQuery = "";
   if (spotifyPlaylistTrackFilter) spotifyPlaylistTrackFilter.value = "";
+  resetSpotifyPlaylistTrackSort();
 };
 
 const clearSoundCloudPlaylistTrackFilter = () => {
   soundcloudPlaylistBrowser.trackFilterQuery = "";
   if (soundcloudPlaylistTrackFilter) soundcloudPlaylistTrackFilter.value = "";
+  resetSoundCloudPlaylistTrackSort();
 };
 
 const renderSpotifyPlaylistTracks = () => {
   if (!spotifyPlaylistTracks) return;
-  const filtered = getFilteredPlaylistTracks(spotifyPlaylistBrowser);
-  renderTrackList(spotifyPlaylistTracks, filtered);
+  const displayed = getDisplayedPlaylistTracks(spotifyPlaylistBrowser);
+  renderTrackList(spotifyPlaylistTracks, displayed);
   syncPlaylistTracksFilterStatus(
     spotifyPlaylistTracksStatus,
     spotifyPlaylistBrowser.trackFilterQuery,
-    filtered.length
+    displayed.length
   );
 };
 
@@ -5138,12 +5185,12 @@ const renderSoundCloudLibraryRows = () => {
 
 const renderSoundCloudPlaylistTracks = () => {
   if (!soundcloudPlaylistTracks) return;
-  const filtered = getFilteredPlaylistTracks(soundcloudPlaylistBrowser);
-  renderTrackList(soundcloudPlaylistTracks, filtered);
+  const displayed = getDisplayedPlaylistTracks(soundcloudPlaylistBrowser);
+  renderTrackList(soundcloudPlaylistTracks, displayed);
   syncPlaylistTracksFilterStatus(
     soundcloudPlaylistTracksStatus,
     soundcloudPlaylistBrowser.trackFilterQuery,
-    filtered.length
+    displayed.length
   );
 };
 
@@ -5522,10 +5569,24 @@ if (spotifyPlaylistTrackFilter) {
     renderSpotifyPlaylistTracks();
   });
 }
+if (spotifyPlaylistTrackSort) {
+  spotifyPlaylistTrackSort.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-track-sort]");
+    if (!btn || !spotifyPlaylistTrackSort.contains(btn)) return;
+    setSpotifyPlaylistTrackSort(btn.dataset.trackSort);
+  });
+}
 if (soundcloudPlaylistTrackFilter) {
   soundcloudPlaylistTrackFilter.addEventListener("input", () => {
     soundcloudPlaylistBrowser.trackFilterQuery = soundcloudPlaylistTrackFilter.value;
     renderSoundCloudPlaylistTracks();
+  });
+}
+if (soundcloudPlaylistTrackSort) {
+  soundcloudPlaylistTrackSort.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-track-sort]");
+    if (!btn || !soundcloudPlaylistTrackSort.contains(btn)) return;
+    setSoundCloudPlaylistTrackSort(btn.dataset.trackSort);
   });
 }
 if (soundcloudOwnedPlaylistsMore) {

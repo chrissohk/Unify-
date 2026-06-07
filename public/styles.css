@@ -3829,14 +3829,28 @@ img.provider-badge-soundcloud {
 
 .playlist-tracks-header {
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  min-width: 0;
+}
+
+.playlist-tracks-controls {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   min-width: 0;
 }
 
-.playlist-tracks-header .playlist-pane-title {
+.playlist-tracks-sort {
+  margin-bottom: 0;
   flex: 1 1 auto;
+}
+
+.playlist-tracks-header .playlist-pane-title {
+  flex: none;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3845,7 +3859,7 @@ img.provider-badge-soundcloud {
 
 .playlist-tracks-search {
   flex: 0 0 auto;
-  width: min(220px, 42%);
+  width: min(220px, 100%);
   min-width: 120px;
 }
 

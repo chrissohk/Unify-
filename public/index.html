@@ -612,7 +612,46 @@
             <div class="playlist-tracks-pane" id="spotifyPlaylistTracksPanel" hidden data-testid="spotify-playlist-tracks-panel">
               <div class="playlist-tracks-header">
                 <h3 id="spotifySelectedPlaylistTitle" class="playlist-pane-title">Tracks</h3>
-                <div class="search-field playlist-tracks-search">
+                <div class="playlist-tracks-controls">
+                  <div
+                    id="spotifyPlaylistTrackSort"
+                    class="search-mode-toggle playlist-tracks-sort"
+                    role="tablist"
+                    aria-label="Sort playlist tracks"
+                    data-testid="spotify-playlist-track-sort"
+                  >
+                    <button
+                      type="button"
+                      class="search-mode-btn is-selected"
+                      role="tab"
+                      aria-selected="true"
+                      data-track-sort="default"
+                      data-testid="spotify-playlist-track-sort-default"
+                    >
+                      Default
+                    </button>
+                    <button
+                      type="button"
+                      class="search-mode-btn"
+                      role="tab"
+                      aria-selected="false"
+                      data-track-sort="newest"
+                      data-testid="spotify-playlist-track-sort-newest"
+                    >
+                      Newest
+                    </button>
+                    <button
+                      type="button"
+                      class="search-mode-btn"
+                      role="tab"
+                      aria-selected="false"
+                      data-track-sort="oldest"
+                      data-testid="spotify-playlist-track-sort-oldest"
+                    >
+                      Oldest
+                    </button>
+                  </div>
+                  <div class="search-field playlist-tracks-search">
                   <svg
                     class="search-field__icon"
                     width="18"
@@ -639,6 +678,7 @@
                     aria-label="Search playlist tracks"
                     data-testid="spotify-playlist-track-filter"
                   />
+                </div>
                 </div>
               </div>
               <div
@@ -941,7 +981,46 @@
             <div class="playlist-tracks-pane" id="soundcloudPlaylistTracksPanel" hidden data-testid="soundcloud-playlist-tracks-panel">
               <div class="playlist-tracks-header">
                 <h3 id="soundcloudSelectedPlaylistTitle" class="playlist-pane-title">Tracks</h3>
-                <div class="search-field playlist-tracks-search">
+                <div class="playlist-tracks-controls">
+                  <div
+                    id="soundcloudPlaylistTrackSort"
+                    class="search-mode-toggle playlist-tracks-sort"
+                    role="tablist"
+                    aria-label="Sort playlist tracks"
+                    data-testid="soundcloud-playlist-track-sort"
+                  >
+                    <button
+                      type="button"
+                      class="search-mode-btn is-selected"
+                      role="tab"
+                      aria-selected="true"
+                      data-track-sort="default"
+                      data-testid="soundcloud-playlist-track-sort-default"
+                    >
+                      Default
+                    </button>
+                    <button
+                      type="button"
+                      class="search-mode-btn"
+                      role="tab"
+                      aria-selected="false"
+                      data-track-sort="newest"
+                      data-testid="soundcloud-playlist-track-sort-newest"
+                    >
+                      Newest
+                    </button>
+                    <button
+                      type="button"
+                      class="search-mode-btn"
+                      role="tab"
+                      aria-selected="false"
+                      data-track-sort="oldest"
+                      data-testid="soundcloud-playlist-track-sort-oldest"
+                    >
+                      Oldest
+                    </button>
+                  </div>
+                  <div class="search-field playlist-tracks-search">
                   <svg
                     class="search-field__icon"
                     width="18"
@@ -968,6 +1047,7 @@
                     aria-label="Search playlist tracks"
                     data-testid="soundcloud-playlist-track-filter"
                   />
+                </div>
                 </div>
               </div>
               <div
@@ -1105,6 +1185,7 @@
     <script src="/volumeControl.js"></script>
     <script src="/queueAutoPlay.js"></script>
     <script src="/filterPlaylistTracks.js"></script>
+    <script src="/sortPlaylistTracks.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

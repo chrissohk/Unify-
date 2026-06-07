@@ -56,6 +56,7 @@ test("normalizePlaylistSummary maps SoundCloud playlist fields", () => {
 
 test("normalizeLikedTrackRow unwraps nested track", () => {
   const out = normalizeLikedTrackRow({
+    created_at: "2023-11-20T08:30:00.000Z",
     track: {
       id: 99,
       title: "Like Me",
@@ -68,6 +69,7 @@ test("normalizeLikedTrackRow unwraps nested track", () => {
   assert.equal(out.title, "Like Me");
   assert.equal(out.permalinkUrl, "https://soundcloud.com/a/b");
   assert.equal(out.provider, "soundcloud");
+  assert.equal(out.addedAt, "2023-11-20T08:30:00.000Z");
 });
 
 test("resolvePlaylistTrackCount parses numeric strings", () => {

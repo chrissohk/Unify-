@@ -68,6 +68,7 @@ test("normalizePlaylistSummary returns null without id", () => {
 
 test("normalizePlaylistTrackRow maps track rows", () => {
   const out = normalizePlaylistTrackRow({
+    added_at: "2024-02-15T10:00:00.000Z",
     track: {
       id: "tr1",
       type: "track",
@@ -86,6 +87,7 @@ test("normalizePlaylistTrackRow maps track rows", () => {
   assert.equal(out.durationSec, 180);
   assert.equal(out.imageUrl, "https://i.scdn.co/image/cover.jpg");
   assert.equal(out.provider, "spotify");
+  assert.equal(out.addedAt, "2024-02-15T10:00:00.000Z");
 });
 
 test("normalizePlaylistTrackRow skips local, non-track, and missing id", () => {

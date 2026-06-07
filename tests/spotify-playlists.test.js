@@ -662,3 +662,30 @@ test("spotifyListPlaylistTracks routes liked songs id to saved tracks", async ()
     global.fetch = originalFetch;
   }
 });
+
+test("mapSpotifyBrowseError uses Liked Songs hint for liked-songs 403, not followed-playlist copy", () => {
+  const { mapSpotifyBrowseError } = require("../server");
+  const res = {
+    statusCode: null,
+    body: null,
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(payload) {
+      this.body = payload;
+      return this;
+    },
+    set() {
+      return this;
+    }
+  };
+  mapSpotifyBrowseError(
+    res,
+    { status: 403, code: "SPOTIFY_LIKED_SONGS_FAILED", details: "forbidden" },
+    "SPOTIFY_PLAYLIST_TRACKS_FAILED"
+  );
+  assert.equal(res.statusCode, 403);
+  assert.match(res.body.error, /Liked Songs/i);
+  assert.doesNotMatch(res.body.error, /playlist you own/i);
+});

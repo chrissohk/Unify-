@@ -885,6 +885,7 @@ let spotifyPlaylistBrowser = {
   demoMode: false,
   selectedId: null,
   selectedTitle: "",
+  selectedPlaylistKind: null,
   tracks: [],
   tracksNextOffset: null,
   trackFilterQuery: "",
@@ -4557,7 +4558,7 @@ const renderSpotifyLibraryRows = () => {
         spotifyLikedSongsList,
         spotifyPlaylistBrowser.likedSongs,
         "spotify-liked-songs-row",
-        (pl) => void selectSpotifyPlaylist(pl.id, pl.name)
+        (pl) => void selectSpotifyPlaylist(pl.id, pl.name, { kind: pl.kind || "liked_songs" })
       );
       const likedBtn = spotifyLikedSongsList.querySelector('[data-testid="spotify-liked-songs-row"]');
       if (likedBtn) {
@@ -4579,7 +4580,7 @@ const renderSpotifyLibraryRows = () => {
         spotifyPlaylistList,
         pl,
         "spotify-playlist-row",
-        (p) => void selectSpotifyPlaylist(p.id, p.name)
+        (p) => void selectSpotifyPlaylist(p.id, p.name, { kind: p.kind || "owned" })
       );
     });
   }
@@ -4590,7 +4591,7 @@ const renderSpotifyLibraryRows = () => {
         spotifyLikedPlaylistList,
         pl,
         "spotify-liked-playlist-row",
-        (p) => void selectSpotifyPlaylist(p.id, p.name)
+        (p) => void selectSpotifyPlaylist(p.id, p.name, { kind: p.kind || "liked_playlist" })
       );
     });
   }
@@ -4655,7 +4656,11 @@ const getDisplayedPlaylistTracks = (browser) => {
 
 const normalizePlaylistTrackSortMode = (mode) => (mode === "oldest" ? "oldest" : "newest");
 
+const isSpotifyFollowedPlaylistSelection = (browser) =>
+  browser.selectedPlaylistKind === "liked_playlist";
+
 const playlistSortNeedsBulkFetch = (browser, nextMode) => {
+  if (isSpotifyFollowedPlaylistSelection(browser)) return false;
   if (browser.tracksNextOffset === null) return false;
   if (nextMode === "oldest") return true;
   if (nextMode === "newest" && browser.trackSortMode === "oldest") return true;
@@ -4855,6 +4860,18 @@ const syncPlaylistTracksPaneStatus = (statusEl, browser, displayedTracks) => {
   }
   delete statusEl.dataset.filterMessage;
   const sortMode = browser.trackSortMode;
+  if (
+    browser === spotifyPlaylistBrowser &&
+    isSpotifyFollowedPlaylistSelection(browser) &&
+    browser.tracksNextOffset !== null &&
+    (sortMode === "newest" || sortMode === "oldest")
+  ) {
+    statusEl.textContent =
+      "Sort uses only the tracks loaded here — Spotify won't load full lists for followed playlists. Use More tracks, or open a playlist you own.";
+    statusEl.dataset.sortMessage = "1";
+    statusEl.hidden = false;
+    return;
+  }
   if ((sortMode === "newest" || sortMode === "oldest") && displayed.length > 0) {
     if (!displayed.some(trackHasAddedAt)) {
       statusEl.textContent =
@@ -5152,12 +5169,13 @@ const loadMoreSpotifyLikedPlaylists = async () => {
   }
 };
 
-const selectSpotifyPlaylist = async (playlistId, playlistName) => {
+const selectSpotifyPlaylist = async (playlistId, playlistName, options = {}) => {
   if (!spotifyPlaylistTracksPanel || !spotifySelectedPlaylistTitle || !spotifyPlaylistTracks) return;
   bumpSpotifyPlaylistTracksLoadGeneration();
   clearSpotifyPlaylistTrackFilter();
   spotifyPlaylistBrowser.selectedId = playlistId;
   spotifyPlaylistBrowser.selectedTitle = playlistName || "";
+  spotifyPlaylistBrowser.selectedPlaylistKind = options.kind || null;
   spotifyPlaylistBrowser.tracks = [];
   spotifyPlaylistBrowser.tracksNextOffset = null;
   spotifySelectedPlaylistTitle.textContent = formatSoundCloudPlaylistTitle(playlistName);

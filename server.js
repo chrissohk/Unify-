@@ -393,12 +393,22 @@ function mapSpotifyBrowseError(res, liveResult, fallbackCode) {
       detailText.includes("only accessible") ||
       detailText.includes("forbidden");
     let error;
-    if (envMissingPlaylistScopes) {
+    if (code === "SPOTIFY_LIKED_SONGS_FAILED") {
+      error =
+        spotifyLikedSongsErrorHint(liveResult) ||
+        "Could not load Liked Songs from Spotify — disconnect and reconnect Spotify via OAuth.";
+    } else if (envMissingPlaylistScopes) {
       error =
         "SPOTIFY_SCOPES in .env is missing playlist-read-private / playlist-read-collaborative. Update .env, restart npm start, then disconnect and reconnect Spotify (OAuth, not simulated Connect).";
-    } else if (code === "SPOTIFY_PLAYLIST_TRACKS_FAILED" || notOwnerOrCollaborator) {
+    } else if (code === "SPOTIFY_PLAYLIST_TRACKS_FAILED" && notOwnerOrCollaborator) {
       error =
         "Spotify only allows loading tracks for playlists you own or collaborate on. Followed playlists appear in the list but cannot show tracks here — open one you created, or duplicate it in Spotify.";
+    } else if (code === "SPOTIFY_PLAYLIST_TRACKS_FAILED") {
+      error =
+        "Spotify denied playlist access — disconnect and reconnect Spotify via OAuth so the token includes playlist-read scopes.";
+    } else if (notOwnerOrCollaborator) {
+      error =
+        "Spotify denied access — disconnect and reconnect Spotify via OAuth, then try again.";
     } else {
       error =
         "Spotify denied playlist access — disconnect and reconnect Spotify via OAuth so the token includes playlist-read scopes.";

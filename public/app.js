@@ -888,7 +888,7 @@ let spotifyPlaylistBrowser = {
   tracks: [],
   tracksNextOffset: null,
   trackFilterQuery: "",
-  trackSortMode: "default"
+  trackSortMode: "newest"
 };
 const SPOTIFY_LIKED_SONGS_PLAYLIST_ID = "__liked_songs__";
 /** Virtual playlist id for liked tracks (matches server SOUNDCLOUD_LIKES_ID). */
@@ -908,8 +908,10 @@ let soundcloudPlaylistBrowser = {
   tracks: [],
   tracksNextOffset: null,
   trackFilterQuery: "",
-  trackSortMode: "default"
+  trackSortMode: "newest"
 };
+let spotifyPlaylistTracksLoadGeneration = 0;
+let soundcloudPlaylistTracksLoadGeneration = 0;
 let reorderInFlight = false;
 /** Queue index while dragging an up-next row (HTML5 DnD). */
 let queueDragFromIndex = null;
@@ -4642,15 +4644,51 @@ const sortPlaylistTracksFn =
     ? window.SortPlaylistTracks.sortPlaylistTracks
     : inlineSortPlaylistTracks;
 
-const getDisplayedPlaylistTracks = (browser) =>
-  sortPlaylistTracksFn(
-    filterPlaylistTracksFn(browser.tracks, browser.trackFilterQuery),
-    browser.trackSortMode
-  );
+const getDisplayedPlaylistTracks = (browser) => {
+  const filtered = filterPlaylistTracksFn(browser.tracks, browser.trackFilterQuery);
+  const mode = browser.trackSortMode === "oldest" ? "oldest" : "newest";
+  if (mode === "newest" && browser.tracksNextOffset !== null) {
+    return filtered;
+  }
+  return sortPlaylistTracksFn(filtered, mode);
+};
+
+const normalizePlaylistTrackSortMode = (mode) => (mode === "oldest" ? "oldest" : "newest");
+
+const playlistSortNeedsBulkFetch = (browser, nextMode) => {
+  if (browser.tracksNextOffset === null) return false;
+  if (nextMode === "oldest") return true;
+  if (nextMode === "newest" && browser.trackSortMode === "oldest") return true;
+  return false;
+};
+
+const bumpSpotifyPlaylistTracksLoadGeneration = () => {
+  spotifyPlaylistTracksLoadGeneration += 1;
+  return spotifyPlaylistTracksLoadGeneration;
+};
+
+const bumpSoundCloudPlaylistTracksLoadGeneration = () => {
+  soundcloudPlaylistTracksLoadGeneration += 1;
+  return soundcloudPlaylistTracksLoadGeneration;
+};
+
+const setSpotifyPlaylistTrackSortBusy = (busy) => {
+  if (!spotifyPlaylistTrackSort) return;
+  spotifyPlaylistTrackSort.querySelectorAll("[data-track-sort]").forEach((btn) => {
+    btn.disabled = Boolean(busy);
+  });
+};
+
+const setSoundCloudPlaylistTrackSortBusy = (busy) => {
+  if (!soundcloudPlaylistTrackSort) return;
+  soundcloudPlaylistTrackSort.querySelectorAll("[data-track-sort]").forEach((btn) => {
+    btn.disabled = Boolean(busy);
+  });
+};
 
 const syncPlaylistTrackSortUi = (sortEl, mode) => {
   if (!sortEl) return;
-  const nextMode = mode === "newest" || mode === "oldest" ? mode : "default";
+  const nextMode = normalizePlaylistTrackSortMode(mode);
   sortEl.querySelectorAll("[data-track-sort]").forEach((btn) => {
     const selected = btn.dataset.trackSort === nextMode;
     btn.classList.toggle("is-selected", selected);
@@ -4659,27 +4697,144 @@ const syncPlaylistTrackSortUi = (sortEl, mode) => {
 };
 
 const resetSpotifyPlaylistTrackSort = () => {
-  spotifyPlaylistBrowser.trackSortMode = "default";
-  syncPlaylistTrackSortUi(spotifyPlaylistTrackSort, "default");
+  spotifyPlaylistBrowser.trackSortMode = "newest";
+  syncPlaylistTrackSortUi(spotifyPlaylistTrackSort, "newest");
 };
 
 const resetSoundCloudPlaylistTrackSort = () => {
-  soundcloudPlaylistBrowser.trackSortMode = "default";
-  syncPlaylistTrackSortUi(soundcloudPlaylistTrackSort, "default");
+  soundcloudPlaylistBrowser.trackSortMode = "newest";
+  syncPlaylistTrackSortUi(soundcloudPlaylistTrackSort, "newest");
 };
 
-const setSpotifyPlaylistTrackSort = (mode) => {
-  const nextMode = mode === "newest" || mode === "oldest" ? mode : "default";
+const ensureAllSpotifyPlaylistTracksLoaded = async ({ loadGeneration, onProgress } = {}) => {
+  if (!spotifyPlaylistBrowser.selectedId) return false;
+  const gen = loadGeneration ?? spotifyPlaylistTracksLoadGeneration;
+  while (spotifyPlaylistBrowser.tracksNextOffset !== null) {
+    if (gen !== spotifyPlaylistTracksLoadGeneration) return false;
+    onProgress?.(spotifyPlaylistBrowser.tracks.length);
+    const data = await fetchSpotifyPlaylistTracksPage(
+      spotifyPlaylistBrowser.selectedId,
+      spotifyPlaylistBrowser.tracksNextOffset
+    );
+    if (gen !== spotifyPlaylistTracksLoadGeneration) return false;
+    spotifyPlaylistBrowser.tracks = spotifyPlaylistBrowser.tracks.concat(data.results || []);
+    spotifyPlaylistBrowser.tracksNextOffset =
+      data.nextOffset === null || data.nextOffset === undefined ? null : data.nextOffset;
+  }
+  if (spotifyTracksMore) {
+    spotifyTracksMore.hidden = spotifyPlaylistBrowser.tracksNextOffset === null;
+  }
+  return true;
+};
+
+const ensureAllSoundCloudPlaylistTracksLoaded = async ({ loadGeneration, onProgress } = {}) => {
+  if (!soundcloudPlaylistBrowser.selectedId) return false;
+  const gen = loadGeneration ?? soundcloudPlaylistTracksLoadGeneration;
+  while (soundcloudPlaylistBrowser.tracksNextOffset !== null) {
+    if (gen !== soundcloudPlaylistTracksLoadGeneration) return false;
+    onProgress?.(soundcloudPlaylistBrowser.tracks.length);
+    const data = await fetchSoundCloudPlaylistTracksPage(
+      soundcloudPlaylistBrowser.selectedId,
+      soundcloudPlaylistBrowser.tracksNextOffset,
+      soundcloudPlaylistBrowser.selectedSecretToken
+    );
+    if (gen !== soundcloudPlaylistTracksLoadGeneration) return false;
+    soundcloudPlaylistBrowser.tracks = soundcloudPlaylistBrowser.tracks.concat(data.results || []);
+    soundcloudPlaylistBrowser.tracksNextOffset =
+      data.nextOffset === null || data.nextOffset === undefined ? null : data.nextOffset;
+  }
+  if (soundcloudTracksMore) {
+    soundcloudTracksMore.hidden = soundcloudPlaylistBrowser.tracksNextOffset === null;
+  }
+  return true;
+};
+
+const setSpotifyPlaylistTrackSort = async (mode) => {
+  const nextMode = normalizePlaylistTrackSortMode(mode);
+  if (
+    nextMode === spotifyPlaylistBrowser.trackSortMode &&
+    !playlistSortNeedsBulkFetch(spotifyPlaylistBrowser, nextMode)
+  ) {
+    return;
+  }
+  const prevMode = spotifyPlaylistBrowser.trackSortMode;
   spotifyPlaylistBrowser.trackSortMode = nextMode;
   syncPlaylistTrackSortUi(spotifyPlaylistTrackSort, nextMode);
-  renderSpotifyPlaylistTracks();
+
+  if (!playlistSortNeedsBulkFetch(spotifyPlaylistBrowser, nextMode)) {
+    renderSpotifyPlaylistTracks();
+    return;
+  }
+
+  const loadGeneration = spotifyPlaylistTracksLoadGeneration;
+  setSpotifyPlaylistTrackSortBusy(true);
+  if (spotifyTracksMore) spotifyTracksMore.hidden = true;
+  const updateProgress = (loaded) => {
+    if (!spotifyPlaylistTracksStatus) return;
+    spotifyPlaylistTracksStatus.textContent = `Loading tracks for sort… (${loaded} loaded)`;
+    spotifyPlaylistTracksStatus.hidden = false;
+    delete spotifyPlaylistTracksStatus.dataset.filterMessage;
+    delete spotifyPlaylistTracksStatus.dataset.sortMessage;
+  };
+  try {
+    await ensureAllSpotifyPlaylistTracksLoaded({ loadGeneration, onProgress: updateProgress });
+    if (loadGeneration !== spotifyPlaylistTracksLoadGeneration) return;
+    renderSpotifyPlaylistTracks();
+  } catch (e) {
+    if (loadGeneration !== spotifyPlaylistTracksLoadGeneration) return;
+    spotifyPlaylistBrowser.trackSortMode = prevMode;
+    syncPlaylistTrackSortUi(spotifyPlaylistTrackSort, prevMode);
+    alertUnlessAuthNotice("spotify", e.message, "Failed to load tracks for sort");
+    renderSpotifyPlaylistTracks();
+  } finally {
+    if (loadGeneration === spotifyPlaylistTracksLoadGeneration) {
+      setSpotifyPlaylistTrackSortBusy(false);
+    }
+  }
 };
 
-const setSoundCloudPlaylistTrackSort = (mode) => {
-  const nextMode = mode === "newest" || mode === "oldest" ? mode : "default";
+const setSoundCloudPlaylistTrackSort = async (mode) => {
+  const nextMode = normalizePlaylistTrackSortMode(mode);
+  if (
+    nextMode === soundcloudPlaylistBrowser.trackSortMode &&
+    !playlistSortNeedsBulkFetch(soundcloudPlaylistBrowser, nextMode)
+  ) {
+    return;
+  }
+  const prevMode = soundcloudPlaylistBrowser.trackSortMode;
   soundcloudPlaylistBrowser.trackSortMode = nextMode;
   syncPlaylistTrackSortUi(soundcloudPlaylistTrackSort, nextMode);
-  renderSoundCloudPlaylistTracks();
+
+  if (!playlistSortNeedsBulkFetch(soundcloudPlaylistBrowser, nextMode)) {
+    renderSoundCloudPlaylistTracks();
+    return;
+  }
+
+  const loadGeneration = soundcloudPlaylistTracksLoadGeneration;
+  setSoundCloudPlaylistTrackSortBusy(true);
+  if (soundcloudTracksMore) soundcloudTracksMore.hidden = true;
+  const updateProgress = (loaded) => {
+    if (!soundcloudPlaylistTracksStatus) return;
+    soundcloudPlaylistTracksStatus.textContent = `Loading tracks for sort… (${loaded} loaded)`;
+    soundcloudPlaylistTracksStatus.hidden = false;
+    delete soundcloudPlaylistTracksStatus.dataset.filterMessage;
+    delete soundcloudPlaylistTracksStatus.dataset.sortMessage;
+  };
+  try {
+    await ensureAllSoundCloudPlaylistTracksLoaded({ loadGeneration, onProgress: updateProgress });
+    if (loadGeneration !== soundcloudPlaylistTracksLoadGeneration) return;
+    renderSoundCloudPlaylistTracks();
+  } catch (e) {
+    if (loadGeneration !== soundcloudPlaylistTracksLoadGeneration) return;
+    soundcloudPlaylistBrowser.trackSortMode = prevMode;
+    syncPlaylistTrackSortUi(soundcloudPlaylistTrackSort, prevMode);
+    alertUnlessAuthNotice("soundcloud", e.message, "Failed to load tracks for sort");
+    renderSoundCloudPlaylistTracks();
+  } finally {
+    if (loadGeneration === soundcloudPlaylistTracksLoadGeneration) {
+      setSoundCloudPlaylistTrackSortBusy(false);
+    }
+  }
 };
 
 const trackHasAddedAt = (track) => {
@@ -4999,6 +5154,7 @@ const loadMoreSpotifyLikedPlaylists = async () => {
 
 const selectSpotifyPlaylist = async (playlistId, playlistName) => {
   if (!spotifyPlaylistTracksPanel || !spotifySelectedPlaylistTitle || !spotifyPlaylistTracks) return;
+  bumpSpotifyPlaylistTracksLoadGeneration();
   clearSpotifyPlaylistTrackFilter();
   spotifyPlaylistBrowser.selectedId = playlistId;
   spotifyPlaylistBrowser.selectedTitle = playlistName || "";
@@ -5337,6 +5493,7 @@ const selectSoundCloudPlaylist = async (playlistId, playlistName, { secretToken 
   if (!soundcloudPlaylistTracksPanel || !soundcloudSelectedPlaylistTitle || !soundcloudPlaylistTracks) {
     return;
   }
+  bumpSoundCloudPlaylistTracksLoadGeneration();
   clearSoundCloudPlaylistTrackFilter();
   soundcloudPlaylistBrowser.selectedId = playlistId;
   soundcloudPlaylistBrowser.selectedTitle = playlistName || "";
@@ -5601,7 +5758,7 @@ if (spotifyPlaylistTrackSort) {
   spotifyPlaylistTrackSort.addEventListener("click", (event) => {
     const btn = event.target.closest("[data-track-sort]");
     if (!btn || !spotifyPlaylistTrackSort.contains(btn)) return;
-    setSpotifyPlaylistTrackSort(btn.dataset.trackSort);
+    void setSpotifyPlaylistTrackSort(btn.dataset.trackSort);
   });
 }
 if (soundcloudPlaylistTrackFilter) {
@@ -5614,7 +5771,7 @@ if (soundcloudPlaylistTrackSort) {
   soundcloudPlaylistTrackSort.addEventListener("click", (event) => {
     const btn = event.target.closest("[data-track-sort]");
     if (!btn || !soundcloudPlaylistTrackSort.contains(btn)) return;
-    setSoundCloudPlaylistTrackSort(btn.dataset.trackSort);
+    void setSoundCloudPlaylistTrackSort(btn.dataset.trackSort);
   });
 }
 if (soundcloudOwnedPlaylistsMore) {

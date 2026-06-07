@@ -170,6 +170,7 @@ function mockSpotifyPlaylistSummaries() {
 
 function mockSpotifyPlaylistTrackResults() {
   const baseMs = Date.now();
+  const trackCount = providers.spotify.tracks.length;
   return providers.spotify.tracks.map((t, index) => ({
     id: t.id,
     title: t.title,
@@ -177,7 +178,7 @@ function mockSpotifyPlaylistTrackResults() {
     durationSec: t.durationSec,
     imageUrl: t.imageUrl,
     provider: "spotify",
-    addedAt: new Date(baseMs - index * 86400000).toISOString()
+    addedAt: new Date(baseMs - (trackCount - 1 - index) * 86400000).toISOString()
   }));
 }
 
@@ -273,6 +274,7 @@ function mockSoundCloudEnrichCounts(playlistRefs) {
 
 function mockSoundCloudPlaylistTracks(playlistId) {
   const baseMs = Date.now();
+  const trackCount = providers.soundcloud.tracks.length;
   const tracks = providers.soundcloud.tracks.map((t, index) => ({
     id: t.id,
     title: t.title,
@@ -281,7 +283,7 @@ function mockSoundCloudPlaylistTracks(playlistId) {
     permalinkUrl: t.permalinkUrl,
     imageUrl: t.imageUrl,
     provider: "soundcloud",
-    addedAt: new Date(baseMs - index * 86400000).toISOString()
+    addedAt: new Date(baseMs - (trackCount - 1 - index) * 86400000).toISOString()
   }));
   if (
     playlistId === SOUNDCLOUD_LIKES_ID ||

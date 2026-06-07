@@ -4611,10 +4611,36 @@ const filterPlaylistTracksFn =
         });
       };
 
+const inlineSortPlaylistTracks = (tracks, mode) => {
+  const list = Array.isArray(tracks) ? tracks : [];
+  if (mode !== "newest" && mode !== "oldest") return list;
+  return list
+    .map((track, index) => {
+      const ms = Date.parse(String(track?.addedAt || "").trim());
+      return {
+        track,
+        index,
+        ts: Number.isFinite(ms) ? ms : null
+      };
+    })
+    .sort((a, b) => {
+      const aHas = a.ts !== null;
+      const bHas = b.ts !== null;
+      if (!aHas && !bHas) return a.index - b.index;
+      if (!aHas) return 1;
+      if (!bHas) return -1;
+      if (a.ts !== b.ts) {
+        return mode === "newest" ? b.ts - a.ts : a.ts - b.ts;
+      }
+      return a.index - b.index;
+    })
+    .map(({ track }) => track);
+};
+
 const sortPlaylistTracksFn =
   typeof window !== "undefined" && window.SortPlaylistTracks?.sortPlaylistTracks
     ? window.SortPlaylistTracks.sortPlaylistTracks
-    : (tracks, mode) => (Array.isArray(tracks) ? tracks : []);
+    : inlineSortPlaylistTracks;
 
 const getDisplayedPlaylistTracks = (browser) =>
   sortPlaylistTracksFn(
@@ -4656,26 +4682,36 @@ const setSoundCloudPlaylistTrackSort = (mode) => {
   renderSoundCloudPlaylistTracks();
 };
 
-const syncPlaylistTracksFilterStatus = (statusEl, query, filteredCount) => {
+const trackHasAddedAt = (track) => {
+  const ms = Date.parse(String(track?.addedAt || "").trim());
+  return Number.isFinite(ms);
+};
+
+const syncPlaylistTracksPaneStatus = (statusEl, browser, displayedTracks) => {
   if (!statusEl) return;
-  const q = String(query || "").trim();
-  if (!q) {
-    if (statusEl.dataset.filterMessage === "1") {
-      statusEl.textContent = "";
-      delete statusEl.dataset.filterMessage;
-      statusEl.hidden = true;
-    }
-    return;
-  }
-  if (filteredCount === 0) {
+  const q = String(browser.trackFilterQuery || "").trim();
+  const displayed = Array.isArray(displayedTracks) ? displayedTracks : [];
+  if (q && displayed.length === 0) {
     statusEl.textContent = `No tracks match “${q}”.`;
     statusEl.dataset.filterMessage = "1";
+    delete statusEl.dataset.sortMessage;
     statusEl.hidden = false;
-  } else {
-    statusEl.textContent = "";
-    delete statusEl.dataset.filterMessage;
-    statusEl.hidden = true;
+    return;
   }
+  delete statusEl.dataset.filterMessage;
+  const sortMode = browser.trackSortMode;
+  if ((sortMode === "newest" || sortMode === "oldest") && displayed.length > 0) {
+    if (!displayed.some(trackHasAddedAt)) {
+      statusEl.textContent =
+        "Can't sort by date — added timestamps aren't available for these tracks.";
+      statusEl.dataset.sortMessage = "1";
+      statusEl.hidden = false;
+      return;
+    }
+  }
+  delete statusEl.dataset.sortMessage;
+  statusEl.textContent = "";
+  statusEl.hidden = true;
 };
 
 const clearSpotifyPlaylistTrackFilter = () => {
@@ -4694,11 +4730,7 @@ const renderSpotifyPlaylistTracks = () => {
   if (!spotifyPlaylistTracks) return;
   const displayed = getDisplayedPlaylistTracks(spotifyPlaylistBrowser);
   renderTrackList(spotifyPlaylistTracks, displayed);
-  syncPlaylistTracksFilterStatus(
-    spotifyPlaylistTracksStatus,
-    spotifyPlaylistBrowser.trackFilterQuery,
-    displayed.length
-  );
+  syncPlaylistTracksPaneStatus(spotifyPlaylistTracksStatus, spotifyPlaylistBrowser, displayed);
 };
 
 const SPOTIFY_PLAYLIST_ERR_SNIPPET_LEN = 160;
@@ -5187,11 +5219,7 @@ const renderSoundCloudPlaylistTracks = () => {
   if (!soundcloudPlaylistTracks) return;
   const displayed = getDisplayedPlaylistTracks(soundcloudPlaylistBrowser);
   renderTrackList(soundcloudPlaylistTracks, displayed);
-  syncPlaylistTracksFilterStatus(
-    soundcloudPlaylistTracksStatus,
-    soundcloudPlaylistBrowser.trackFilterQuery,
-    displayed.length
-  );
+  syncPlaylistTracksPaneStatus(soundcloudPlaylistTracksStatus, soundcloudPlaylistBrowser, displayed);
 };
 
 const bootstrapSoundCloudPlaylistBrowser = async () => {

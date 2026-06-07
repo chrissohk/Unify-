@@ -373,6 +373,7 @@ test("spotifyListPlaylistTracks parses results and null next", async () => {
         json: async () => ({
           items: [
             {
+              added_at: "2024-04-01T12:00:00.000Z",
               item: {
                 id: "t1",
                 type: "track",
@@ -421,6 +422,7 @@ test("spotifyListPlaylistTracks parses results and null next", async () => {
     assert.equal(r.results.length, 1);
     assert.equal(r.results[0].id, "t1");
     assert.equal(r.results[0].imageUrl, "https://i.scdn.co/image/enriched.jpg");
+    assert.equal(r.results[0].addedAt, "2024-04-01T12:00:00.000Z");
     assert.equal(r.nextOffset, null);
   } finally {
     global.fetch = originalFetch;
@@ -531,6 +533,12 @@ test("GET /api/spotify/playlists/:id/tracks demo vs unknown id", async () => {
     .expect(200);
   assert.equal(liked.body.demoMode, true);
   assert.ok(liked.body.results.length >= 1);
+  assert.ok(liked.body.results.every((t) => typeof t.addedAt === "string" && t.addedAt.length > 0));
+  if (liked.body.results.length >= 2) {
+    const firstMs = Date.parse(liked.body.results[0].addedAt);
+    const lastMs = Date.parse(liked.body.results[liked.body.results.length - 1].addedAt);
+    assert.ok(firstMs < lastMs, "demo catalog order should not match newest-first dates");
+  }
 
   await request(app)
     .get("/api/spotify/playlists/other-playlist/tracks")
@@ -601,6 +609,7 @@ test("spotifyListPlaylistTracks routes liked songs id to saved tracks", async ()
           total: 2,
           items: [
             {
+              added_at: "2023-08-10T16:20:00.000Z",
               track: {
                 id: "s1",
                 type: "track",
@@ -647,6 +656,7 @@ test("spotifyListPlaylistTracks routes liked songs id to saved tracks", async ()
     assert.equal(r.ok, true);
     assert.equal(r.results.length, 1);
     assert.equal(r.results[0].id, "s1");
+    assert.equal(r.results[0].addedAt, "2023-08-10T16:20:00.000Z");
     assert.equal(r.nextOffset, null);
   } finally {
     global.fetch = originalFetch;

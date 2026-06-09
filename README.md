@@ -82,7 +82,6 @@ This guide assumes you are **not** a programmer. You will install a small progra
 - A Windows, Mac, or Linux computer
 - An internet connection
 - A web browser (Chrome, Edge, or Firefox recommended)
-- About 30–60 minutes the first time (mostly for creating free developer accounts)
 - For **real Spotify playback**: a **Spotify Premium** subscription on the account you connect. For **real Soundcloud playback**: a **Soundcloud Artist Pro** subscription on the account you connect
 - Your own **Spotify** and **SoundCloud** logins (for the full experience)
 

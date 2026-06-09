@@ -2043,6 +2043,62 @@ body.now-playing-theater-open .now-playing-layout__artist {
   border-color: var(--color-soundcloud);
 }
 
+#panel-spotify-search ul.track-list > li.album-search-item,
+#panel-soundcloud-search ul.track-list > li.album-search-item {
+  padding: 0;
+}
+
+#panel-spotify-search .album-search-row-btn,
+#panel-soundcloud-search .album-search-row-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+#panel-spotify-search .album-search-main,
+#panel-soundcloud-search .album-search-main {
+  width: 100%;
+  min-width: 0;
+}
+
+#panel-spotify-search .album-search-item .track-list-art,
+#panel-soundcloud-search .album-search-item .track-list-art {
+  width: 48px;
+  height: 48px;
+}
+
+#panel-spotify-search ul.track-list > li.album-search-item:hover,
+#panel-soundcloud-search ul.track-list > li.album-search-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+#panel-spotify-search .album-search-item:hover .track-list-art,
+#panel-spotify-search .album-search-item:focus-within .track-list-art {
+  box-shadow: 0 0 0 1px var(--color-spotify);
+}
+
+#panel-soundcloud-search .album-search-item:hover .track-list-art,
+#panel-soundcloud-search .album-search-item:focus-within .track-list-art {
+  box-shadow: 0 0 0 1px var(--color-soundcloud);
+}
+
+#panel-spotify-search .album-search-row-btn:focus-visible {
+  outline: 2px solid var(--color-spotify);
+  outline-offset: -2px;
+}
+
+#panel-soundcloud-search .album-search-row-btn:focus-visible {
+  outline: 2px solid var(--color-soundcloud);
+  outline-offset: -2px;
+}
+
 form {
   display: grid;
   gap: 10px;
@@ -3539,6 +3595,35 @@ img.provider-badge-soundcloud {
   border-top: 1px solid var(--color-border);
   display: grid;
   gap: 16px;
+}
+
+.library-search {
+  flex-shrink: 0;
+}
+
+.spotify-library-split .search-field input {
+  border-color: rgba(30, 215, 96, 0.35);
+}
+
+.spotify-library-split .search-field input:focus {
+  outline: none;
+  border-color: var(--color-spotify);
+  box-shadow: 0 0 0 2px rgba(30, 215, 96, 0.28);
+}
+
+.soundcloud-library-split .search-field input {
+  border-color: rgba(255, 85, 0, 0.42);
+}
+
+.soundcloud-library-split .search-field input:focus {
+  outline: none;
+  border-color: var(--color-soundcloud);
+  box-shadow: 0 0 0 2px rgba(255, 85, 0, 0.28);
+}
+
+.library-filter-empty {
+  margin: 8px 0 0;
+  text-align: center;
 }
 
 .spotify-library-scroll,

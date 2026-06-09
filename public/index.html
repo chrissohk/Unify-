@@ -519,6 +519,34 @@
           <div class="spotify-library-split library-split" aria-label="Spotify library">
             <div class="playlist-pane">
               <h3 class="playlist-pane-title">Your library</h3>
+              <div class="search-field library-search">
+                <svg
+                  class="search-field__icon"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
+                  <path
+                    d="M15.5 15.5L20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+                <label class="visually-hidden" for="spotifyLibraryFilter">Search Spotify playlists</label>
+                <input
+                  id="spotifyLibraryFilter"
+                  type="search"
+                  autocomplete="off"
+                  placeholder="Search playlists"
+                  aria-label="Search Spotify playlists"
+                  data-testid="spotify-library-filter"
+                />
+              </div>
               <div class="spotify-library-scroll">
                 <div
                   id="spotifyPlaylistLoading"
@@ -546,6 +574,15 @@
                   aria-live="polite"
                   data-testid="spotify-playlist-status"
                 ></p>
+                <p
+                  id="spotifyLibraryFilterEmpty"
+                  class="hint-text library-filter-empty"
+                  hidden
+                  aria-live="polite"
+                  data-testid="spotify-library-filter-empty"
+                >
+                  No playlists match your search.
+                </p>
                 <div class="spotify-library-groups" id="spotifyLibraryGroups">
                   <section class="library-group" data-library-group="spotify-liked-songs">
                     <button
@@ -893,6 +930,34 @@
           <div class="soundcloud-library-split library-split" aria-label="SoundCloud library">
             <div class="playlist-pane">
               <h3 class="playlist-pane-title">Your library</h3>
+              <div class="search-field library-search">
+                <svg
+                  class="search-field__icon"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
+                  <path
+                    d="M15.5 15.5L20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+                <label class="visually-hidden" for="soundcloudLibraryFilter">Search SoundCloud playlists</label>
+                <input
+                  id="soundcloudLibraryFilter"
+                  type="search"
+                  autocomplete="off"
+                  placeholder="Search playlists"
+                  aria-label="Search SoundCloud playlists"
+                  data-testid="soundcloud-library-filter"
+                />
+              </div>
               <div class="soundcloud-library-scroll">
                 <div
                   id="soundcloudPlaylistLoading"
@@ -913,6 +978,15 @@
                     <span class="visually-hidden">Loading library</span>
                   </div>
                 </div>
+                <p
+                  id="soundcloudLibraryFilterEmpty"
+                  class="hint-text library-filter-empty"
+                  hidden
+                  aria-live="polite"
+                  data-testid="soundcloud-library-filter-empty"
+                >
+                  No playlists match your search.
+                </p>
                 <div class="soundcloud-library-groups" id="soundcloudLibraryGroups">
                   <section class="library-group" data-library-group="soundcloud-likes">
                     <button

@@ -48,6 +48,8 @@ const panelSoundcloudSearch = document.getElementById("panel-soundcloud-search")
 const spotifyPlaylistLoading = document.getElementById("spotifyPlaylistLoading");
 const spotifyPlaylistStatus = document.getElementById("spotifyPlaylistStatus");
 const spotifyLibraryGroups = document.getElementById("spotifyLibraryGroups");
+const spotifyLibraryFilter = document.getElementById("spotifyLibraryFilter");
+const spotifyLibraryFilterEmpty = document.getElementById("spotifyLibraryFilterEmpty");
 const spotifyLikedSongsList = document.getElementById("spotifyLikedSongsList");
 const spotifyPlaylistList = document.getElementById("spotifyPlaylistList");
 const spotifyPlaylistsMore = document.getElementById("spotifyPlaylistsMore");
@@ -63,6 +65,8 @@ const spotifyPlaylistTracks = document.getElementById("spotifyPlaylistTracks");
 const spotifyTracksMore = document.getElementById("spotifyTracksMore");
 const soundcloudPlaylistLoading = document.getElementById("soundcloudPlaylistLoading");
 const soundcloudLibraryGroups = document.getElementById("soundcloudLibraryGroups");
+const soundcloudLibraryFilter = document.getElementById("soundcloudLibraryFilter");
+const soundcloudLibraryFilterEmpty = document.getElementById("soundcloudLibraryFilterEmpty");
 const soundcloudLikesList = document.getElementById("soundcloudLikesList");
 const soundcloudOwnedPlaylistList = document.getElementById("soundcloudOwnedPlaylistList");
 const soundcloudOwnedPlaylistsMore = document.getElementById("soundcloudOwnedPlaylistsMore");
@@ -888,6 +892,7 @@ let spotifyPlaylistBrowser = {
   selectedPlaylistKind: null,
   tracks: [],
   tracksNextOffset: null,
+  libraryFilterQuery: "",
   trackFilterQuery: "",
   trackSortMode: "newest"
 };
@@ -908,6 +913,7 @@ let soundcloudPlaylistBrowser = {
   selectedSecretToken: null,
   tracks: [],
   tracksNextOffset: null,
+  libraryFilterQuery: "",
   trackFilterQuery: "",
   trackSortMode: "newest"
 };
@@ -3725,24 +3731,84 @@ const renderSpotifySearchResults = () => {
   renderTrackList(spotifySearchResults, activeSpotifyResults);
 };
 
-const appendSpotifyAlbumRow = (ul, album) => {
-  if (!ul || !album) return;
-  const li = document.createElement("li");
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "playlist-row-btn";
+const formatAlbumSearchSubtitle = (album) => {
   const meta = [];
-  if (album.artist) meta.push(album.artist);
-  if (album.releaseYear) meta.push(album.releaseYear);
-  if (typeof album.trackCount === "number" && album.trackCount > 0) {
+  if (album?.artist) meta.push(album.artist);
+  if (album?.releaseYear) meta.push(album.releaseYear);
+  if (typeof album?.trackCount === "number" && album.trackCount > 0) {
     meta.push(`${album.trackCount} tracks`);
   }
-  const suffix = meta.length ? ` · ${meta.join(" · ")}` : "";
-  btn.textContent = `${album.name || "Untitled"}${suffix}`;
-  btn.setAttribute("data-testid", "spotify-album-row");
-  btn.onclick = () => void selectSpotifyAlbum(album);
+  return meta.join(" · ");
+};
+
+const createAlbumSearchArt = (imageUrl) => {
+  const url = typeof imageUrl === "string" ? imageUrl.trim() : "";
+  if (url) {
+    const img = document.createElement("img");
+    img.className = "track-list-art";
+    img.src = url;
+    img.alt = "";
+    img.decoding = "async";
+    img.loading = "lazy";
+    img.referrerPolicy = "no-referrer";
+    img.onerror = () => {
+      img.replaceWith(
+        (() => {
+          const fallback = document.createElement("div");
+          fallback.className = "track-list-art track-list-art-fallback";
+          fallback.setAttribute("aria-hidden", "true");
+          return fallback;
+        })()
+      );
+    };
+    return img;
+  }
+  const fallback = document.createElement("div");
+  fallback.className = "track-list-art track-list-art-fallback";
+  fallback.setAttribute("aria-hidden", "true");
+  return fallback;
+};
+
+const appendAlbumSearchRow = (ul, album, { testId, onSelect, resolveImageUrl }) => {
+  if (!ul || !album) return;
+  const li = document.createElement("li");
+  li.className = "track-list-item album-search-item";
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "album-search-row-btn";
+  btn.setAttribute("data-testid", testId);
+  btn.onclick = () => void onSelect(album);
+
+  const main = document.createElement("div");
+  main.className = "track-list-main album-search-main";
+
+  const rawUrl = String(album?.imageUrl || "").trim();
+  const resolvedUrl = typeof resolveImageUrl === "function" ? resolveImageUrl(rawUrl) : rawUrl;
+  main.appendChild(createAlbumSearchArt(resolvedUrl));
+
+  const meta = document.createElement("div");
+  meta.className = "track-list-meta";
+  const titleEl = document.createElement("div");
+  titleEl.className = "track-list-title";
+  titleEl.textContent = album.name || "Untitled";
+  const subtitleEl = document.createElement("div");
+  subtitleEl.className = "track-list-artist";
+  subtitleEl.textContent = formatAlbumSearchSubtitle(album);
+  meta.appendChild(titleEl);
+  meta.appendChild(subtitleEl);
+  main.appendChild(meta);
+
+  btn.appendChild(main);
   li.appendChild(btn);
   ul.appendChild(li);
+};
+
+const appendSpotifyAlbumRow = (ul, album) => {
+  appendAlbumSearchRow(ul, album, {
+    testId: "spotify-album-row",
+    onSelect: selectSpotifyAlbum
+  });
 };
 
 const renderSpotifyAlbumSearchResults = () => {
@@ -3762,23 +3828,11 @@ const renderSoundcloudSearchResults = () => {
 };
 
 const appendSoundcloudAlbumRow = (ul, album) => {
-  if (!ul || !album) return;
-  const li = document.createElement("li");
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "playlist-row-btn";
-  const meta = [];
-  if (album.artist) meta.push(album.artist);
-  if (album.releaseYear) meta.push(album.releaseYear);
-  if (typeof album.trackCount === "number" && album.trackCount > 0) {
-    meta.push(`${album.trackCount} tracks`);
-  }
-  const suffix = meta.length ? ` · ${meta.join(" · ")}` : "";
-  btn.textContent = `${album.name || "Untitled"}${suffix}`;
-  btn.setAttribute("data-testid", "soundcloud-album-row");
-  btn.onclick = () => void selectSoundcloudAlbum(album);
-  li.appendChild(btn);
-  ul.appendChild(li);
+  appendAlbumSearchRow(ul, album, {
+    testId: "soundcloud-album-row",
+    onSelect: selectSoundcloudAlbum,
+    resolveImageUrl: upgradeSoundCloudArtworkUrl
+  });
 };
 
 const renderSoundcloudAlbumSearchResults = () => {
@@ -3823,7 +3877,7 @@ const renderSoundcloudAlbumHero = (album) => {
   const releaseYear = album?.releaseYear || "";
   const trackCount =
     typeof album?.trackCount === "number" && album.trackCount > 0 ? album.trackCount : null;
-  const imageUrl = String(album?.imageUrl || "").trim();
+  const imageUrl = upgradeSoundCloudArtworkUrl(String(album?.imageUrl || "").trim());
 
   if (soundcloudAlbumHeroTitle) {
     soundcloudAlbumHeroTitle.textContent = name;
@@ -4414,6 +4468,7 @@ const setSpotifyPlaylistLoading = (loading) => {
   spotifyPlaylistLoading.hidden = !loading;
   spotifyPlaylistLoading.setAttribute("aria-hidden", loading ? "false" : "true");
   scrollEl?.classList.toggle("is-library-loading", loading);
+  if (spotifyLibraryFilter) spotifyLibraryFilter.disabled = Boolean(loading);
   if (spotifyLibraryGroups) {
     const hasStatus = Boolean(spotifyPlaylistStatus && !spotifyPlaylistStatus.hidden);
     const hideGroups = loading || hasStatus;
@@ -4423,6 +4478,9 @@ const setSpotifyPlaylistLoading = (loading) => {
   if (loading && spotifyPlaylistStatus) {
     spotifyPlaylistStatus.hidden = true;
     spotifyPlaylistStatus.textContent = "";
+  }
+  if (loading && spotifyLibraryFilterEmpty) {
+    spotifyLibraryFilterEmpty.hidden = true;
   }
   if (spotifyPlaylistList) {
     const hasStatus = Boolean(spotifyPlaylistStatus && !spotifyPlaylistStatus.hidden);
@@ -4465,6 +4523,9 @@ const setSpotifyPlaylistStatus = (message = "") => {
   const hasMessage = Boolean(message);
   spotifyPlaylistStatus.textContent = message;
   spotifyPlaylistStatus.hidden = !hasMessage;
+  if (spotifyLibraryFilterEmpty && hasMessage) {
+    spotifyLibraryFilterEmpty.hidden = true;
+  }
   if (spotifyLibraryGroups) {
     spotifyLibraryGroups.hidden = hasMessage;
     spotifyLibraryGroups.setAttribute("aria-hidden", hasMessage ? "true" : "false");
@@ -4531,6 +4592,43 @@ const updateLibraryGroupMeta = (groupId, count) => {
   meta.textContent = formatLibraryGroupCountLabel(n);
 };
 
+const getLibraryFilterQuery = (query) => String(query || "").trim().toLowerCase();
+
+const playlistMatchesLibraryFilter = (playlist, query) => {
+  const q = getLibraryFilterQuery(query);
+  if (!q) return Boolean(playlist);
+  if (!playlist) return false;
+  const name = String(playlist.name || "").toLowerCase();
+  const owner = String(playlist.ownerDisplayName || "").toLowerCase();
+  return name.includes(q) || owner.includes(q);
+};
+
+const filterLibraryPlaylists = (playlists, query) => {
+  const list = Array.isArray(playlists) ? playlists : [];
+  const q = getLibraryFilterQuery(query);
+  if (!q) return list;
+  return list.filter((pl) => playlistMatchesLibraryFilter(pl, q));
+};
+
+const setLibraryGroupFilteredVisibility = (groupId, visibleCount, isFiltering) => {
+  const groupEl = document.querySelector(`[data-library-group="${groupId}"]`);
+  if (!groupEl) return;
+  const hide = Boolean(isFiltering) && visibleCount === 0;
+  groupEl.hidden = hide;
+  groupEl.setAttribute("aria-hidden", hide ? "true" : "false");
+};
+
+const syncLibraryFilterEmptyState = (emptyEl, groupsEl, visibleCount, isFiltering) => {
+  if (!emptyEl) return;
+  const show = Boolean(isFiltering) && visibleCount === 0;
+  emptyEl.hidden = !show;
+  if (groupsEl) {
+    const hideGroups = show;
+    groupsEl.hidden = hideGroups;
+    groupsEl.setAttribute("aria-hidden", hideGroups ? "true" : "false");
+  }
+};
+
 const initLibraryGroupToggles = (rootEl) => {
   if (!rootEl) return;
   const saved = readLibraryGroupExpandedState();
@@ -4551,9 +4649,19 @@ const initLibraryGroupToggles = (rootEl) => {
 };
 
 const renderSpotifyLibraryRows = () => {
+  const libraryQuery = spotifyPlaylistBrowser.libraryFilterQuery;
+  const isFiltering = Boolean(getLibraryFilterQuery(libraryQuery));
+  const likedSongsVisible =
+    spotifyPlaylistBrowser.likedSongs &&
+    playlistMatchesLibraryFilter(spotifyPlaylistBrowser.likedSongs, libraryQuery);
+  const ownedVisible = filterLibraryPlaylists(spotifyPlaylistBrowser.items, libraryQuery);
+  const likedVisible = filterLibraryPlaylists(spotifyPlaylistBrowser.likedItems, libraryQuery);
+  const totalVisible =
+    (likedSongsVisible ? 1 : 0) + ownedVisible.length + likedVisible.length;
+
   if (spotifyLikedSongsList) {
     spotifyLikedSongsList.innerHTML = "";
-    if (spotifyPlaylistBrowser.likedSongs) {
+    if (likedSongsVisible) {
       appendSoundCloudPlaylistRow(
         spotifyLikedSongsList,
         spotifyPlaylistBrowser.likedSongs,
@@ -4575,7 +4683,7 @@ const renderSpotifyLibraryRows = () => {
   }
   if (spotifyPlaylistList) {
     spotifyPlaylistList.innerHTML = "";
-    spotifyPlaylistBrowser.items.forEach((pl) => {
+    ownedVisible.forEach((pl) => {
       appendSoundCloudPlaylistRow(
         spotifyPlaylistList,
         pl,
@@ -4586,7 +4694,7 @@ const renderSpotifyLibraryRows = () => {
   }
   if (spotifyLikedPlaylistList) {
     spotifyLikedPlaylistList.innerHTML = "";
-    spotifyPlaylistBrowser.likedItems.forEach((pl) => {
+    likedVisible.forEach((pl) => {
       appendSoundCloudPlaylistRow(
         spotifyLikedPlaylistList,
         pl,
@@ -4595,9 +4703,26 @@ const renderSpotifyLibraryRows = () => {
       );
     });
   }
-  updateLibraryGroupMeta("spotify-liked-songs", spotifyPlaylistBrowser.likedSongs ? 1 : 0);
-  updateLibraryGroupMeta("spotify-owned", spotifyPlaylistBrowser.items.length);
-  updateLibraryGroupMeta("spotify-liked", spotifyPlaylistBrowser.likedItems.length);
+  updateLibraryGroupMeta("spotify-liked-songs", likedSongsVisible ? 1 : 0);
+  updateLibraryGroupMeta("spotify-owned", ownedVisible.length);
+  updateLibraryGroupMeta("spotify-liked", likedVisible.length);
+  setLibraryGroupFilteredVisibility("spotify-liked-songs", likedSongsVisible ? 1 : 0, isFiltering);
+  setLibraryGroupFilteredVisibility("spotify-owned", ownedVisible.length, isFiltering);
+  setLibraryGroupFilteredVisibility("spotify-liked", likedVisible.length, isFiltering);
+  syncLibraryFilterEmptyState(
+    spotifyLibraryFilterEmpty,
+    spotifyLibraryGroups,
+    totalVisible,
+    isFiltering
+  );
+  if (spotifyPlaylistsMore) {
+    spotifyPlaylistsMore.hidden =
+      isFiltering || spotifyPlaylistBrowser.nextOffset === null;
+  }
+  if (spotifyLikedPlaylistsMore) {
+    spotifyLikedPlaylistsMore.hidden =
+      isFiltering || spotifyPlaylistBrowser.likedNextOffset === null;
+  }
 };
 
 const filterPlaylistTracksFn =
@@ -5315,6 +5440,7 @@ const setSoundCloudPlaylistLoading = (loading) => {
   soundcloudPlaylistLoading.hidden = !loading;
   soundcloudPlaylistLoading.setAttribute("aria-hidden", loading ? "false" : "true");
   scrollEl?.classList.toggle("is-library-loading", loading);
+  if (soundcloudLibraryFilter) soundcloudLibraryFilter.disabled = Boolean(loading);
   if (soundcloudLibraryGroups) {
     soundcloudLibraryGroups.hidden = loading;
     soundcloudLibraryGroups.setAttribute("aria-hidden", loading ? "true" : "false");
@@ -5322,6 +5448,9 @@ const setSoundCloudPlaylistLoading = (loading) => {
   if (loading) {
     if (soundcloudOwnedPlaylistsMore) soundcloudOwnedPlaylistsMore.hidden = true;
     if (soundcloudLikedPlaylistsMore) soundcloudLikedPlaylistsMore.hidden = true;
+  }
+  if (loading && soundcloudLibraryFilterEmpty) {
+    soundcloudLibraryFilterEmpty.hidden = true;
   }
 };
 
@@ -5351,9 +5480,18 @@ const setSoundCloudPlaylistTracksLoading = (loading) => {
 };
 
 const renderSoundCloudLibraryRows = () => {
+  const libraryQuery = soundcloudPlaylistBrowser.libraryFilterQuery;
+  const isFiltering = Boolean(getLibraryFilterQuery(libraryQuery));
+  const likesVisible =
+    soundcloudPlaylistBrowser.likes &&
+    playlistMatchesLibraryFilter(soundcloudPlaylistBrowser.likes, libraryQuery);
+  const ownedVisible = filterLibraryPlaylists(soundcloudPlaylistBrowser.ownedItems, libraryQuery);
+  const likedVisible = filterLibraryPlaylists(soundcloudPlaylistBrowser.likedItems, libraryQuery);
+  const totalVisible = (likesVisible ? 1 : 0) + ownedVisible.length + likedVisible.length;
+
   if (soundcloudLikesList) {
     soundcloudLikesList.innerHTML = "";
-    if (soundcloudPlaylistBrowser.likes) {
+    if (likesVisible) {
       appendSoundCloudPlaylistRow(
         soundcloudLikesList,
         soundcloudPlaylistBrowser.likes,
@@ -5364,7 +5502,7 @@ const renderSoundCloudLibraryRows = () => {
   }
   if (soundcloudOwnedPlaylistList) {
     soundcloudOwnedPlaylistList.innerHTML = "";
-    soundcloudPlaylistBrowser.ownedItems.forEach((pl) => {
+    ownedVisible.forEach((pl) => {
       appendSoundCloudPlaylistRow(
         soundcloudOwnedPlaylistList,
         pl,
@@ -5375,7 +5513,7 @@ const renderSoundCloudLibraryRows = () => {
   }
   if (soundcloudLikedPlaylistList) {
     soundcloudLikedPlaylistList.innerHTML = "";
-    soundcloudPlaylistBrowser.likedItems.forEach((pl) => {
+    likedVisible.forEach((pl) => {
       appendSoundCloudPlaylistRow(
         soundcloudLikedPlaylistList,
         pl,
@@ -5384,9 +5522,26 @@ const renderSoundCloudLibraryRows = () => {
       );
     });
   }
-  updateLibraryGroupMeta("soundcloud-likes", soundcloudPlaylistBrowser.likes ? 1 : 0);
-  updateLibraryGroupMeta("soundcloud-owned", soundcloudPlaylistBrowser.ownedItems.length);
-  updateLibraryGroupMeta("soundcloud-liked", soundcloudPlaylistBrowser.likedItems.length);
+  updateLibraryGroupMeta("soundcloud-likes", likesVisible ? 1 : 0);
+  updateLibraryGroupMeta("soundcloud-owned", ownedVisible.length);
+  updateLibraryGroupMeta("soundcloud-liked", likedVisible.length);
+  setLibraryGroupFilteredVisibility("soundcloud-likes", likesVisible ? 1 : 0, isFiltering);
+  setLibraryGroupFilteredVisibility("soundcloud-owned", ownedVisible.length, isFiltering);
+  setLibraryGroupFilteredVisibility("soundcloud-liked", likedVisible.length, isFiltering);
+  syncLibraryFilterEmptyState(
+    soundcloudLibraryFilterEmpty,
+    soundcloudLibraryGroups,
+    totalVisible,
+    isFiltering
+  );
+  if (soundcloudOwnedPlaylistsMore) {
+    soundcloudOwnedPlaylistsMore.hidden =
+      isFiltering || soundcloudPlaylistBrowser.ownedNextOffset === null;
+  }
+  if (soundcloudLikedPlaylistsMore) {
+    soundcloudLikedPlaylistsMore.hidden =
+      isFiltering || soundcloudPlaylistBrowser.likedNextOffset === null;
+  }
 };
 
 const renderSoundCloudPlaylistTracks = () => {
@@ -5766,6 +5921,20 @@ if (spotifyLikedPlaylistsMore) {
 if (spotifyTracksMore) {
   spotifyTracksMore.addEventListener("click", () => void loadMoreSpotifyPlaylistTracks());
 }
+if (spotifyLibraryFilter) {
+  spotifyLibraryFilter.addEventListener("input", () => {
+    spotifyPlaylistBrowser.libraryFilterQuery = spotifyLibraryFilter.value;
+    renderSpotifyLibraryRows();
+  });
+}
+
+if (soundcloudLibraryFilter) {
+  soundcloudLibraryFilter.addEventListener("input", () => {
+    soundcloudPlaylistBrowser.libraryFilterQuery = soundcloudLibraryFilter.value;
+    renderSoundCloudLibraryRows();
+  });
+}
+
 if (spotifyPlaylistTrackFilter) {
   spotifyPlaylistTrackFilter.addEventListener("input", () => {
     spotifyPlaylistBrowser.trackFilterQuery = spotifyPlaylistTrackFilter.value;

@@ -240,19 +240,9 @@ The `.env` file must sit in the **same folder** as `README.md` and `package.json
 | **Git clone** (Option A in Step 2) | **`Unify-`** | `C:\Users\YourName\OneDrive\Desktop\Unify-\` |
 | **ZIP download** (Option B in Step 2) | **`Unify--main`** (name can vary) | `C:\Users\YourName\OneDrive\Desktop\Unify--main\` |
 
-**Important:** If you have **two** folders (for example `Unify-` and `Soundcloud and Spotify Multiplayer`), you must use **one** folder for everything: `cd` there, run `npm install` and `npm start` there, and put **`.env`** in **that same** folder. Editing `.env` in a different folder is the most common reason Connect says **“OAuth not configured”**.
+**Important:** You must use **one (the same)** folder for everything: `cd` there, run `npm install` and `npm start` there, and put **`.env`** in **that same** folder. Editing `.env` in a different folder is the most common reason Connect says **“OAuth not configured”**.
 
-**Find the folder in File Explorer (Windows):**
-
-1. Open **File Explorer**.
-2. Go to **Desktop** (or **OneDrive → Desktop** if you use OneDrive).
-3. Open the project folder (`Unify-` or `Unify--main`).
-4. You should see files such as `README.md`, `package.json`, and `.env.example`.
-5. After you create it, you will also see **`.env`** in this same folder.
-
-**Show hidden files if you do not see `.env`:** In File Explorer, click **View** → turn on **Hidden items**. Files whose names start with a dot (like `.env`) are sometimes hidden.
-
-#### Create `.env` from the template (one time)
+a) #### Create `.env` from the template (one time)
 
 Open **PowerShell**, go to your project folder (same `cd` commands as Step 2), then run **one** of these:
 
@@ -268,13 +258,24 @@ Copy-Item .env.example .env
 cp .env.example .env
 ```
 
+b) **Find the folder**
+
+1. Open **File Explorer (Windows) or Finder (Mac)**.
+2. Go to **Desktop** (or **OneDrive → Desktop** if you use OneDrive).
+3. Open the project folder (`Unify-` or `Unify--main`).
+4. You should see files such as `README.md`, `package.json`, and `.env.example`.
+5. After you create it, you will also see **`.env`** in this same folder (the env.example may show as "env." whereby there may be 2 env files...make sure you edit the right one (check file type)".
+
+**Show hidden files if you do not see `.env`:** In File Explorer, click **View** → turn on **Hidden items**. Files whose names start with a dot (like `.env`) are sometimes hidden.
+
+
 #### How to open and edit `.env` (Windows, plain steps)
 
-1. In **File Explorer**, open your project folder (`Unify-` or `Unify--main`).
-2. Right‑click the file **`.env`** → **Open with** → **Notepad**.  
+1. In **File Explorer (Windows) or Finder (Mac)**, open your project folder (`Unify-` or `Unify--main`).
+2. Right‑click the file **`.env`** → **Open with** → **Notepad (Windows) or TextEdit (Mac)**.  
    (If Notepad is not listed, choose **Choose another app** → **Notepad**.)
 3. You will see lines like `SPOTIFY_CLIENT_ID=` with nothing (or something) after the `=`.
-4. In [Step 6](#step-6--connect-your-real-spotify-and-soundcloud-path-b), you will paste your codes **immediately after the `=`** on each line.
+4. In [Step 6](#step-6--connect-your-real-spotify-and-soundcloud-path-b), after you create your developer accounts you can paste the relevant codes **immediately after the `=`** on each line.
 5. When finished: **File** → **Save** in Notepad. Close Notepad.
 
 **Mac:** open `.env` in **TextEdit** → **Format** → **Make Plain Text** before saving.

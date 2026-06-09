@@ -933,7 +933,8 @@ let spotifyCredentialBanner = "";
 let spotifyPlaybackPendingUserResume = false;
 /** After reload, show reconnect UI until user resumes or playback restores. */
 let spotifyReloadNeedsUserResume = false;
-let spotifyRestoreInFlight = false;
+/** Serializes overlapping ensureSpotifyNowPlaying calls (auto-advance vs manual play). */
+let spotifyRestoreChain = Promise.resolve();
 /** Per-provider auth issues from API health or failed requests (spotify | soundcloud). */
 const providerAuthIssues = { spotify: null, soundcloud: null };
 let authSuccessToast = null;
@@ -1338,6 +1339,33 @@ const spotifyReloadSnap = () => {
       resolveSpotifyResumePositionMs: () => 0,
       resolveResumePositionMs: () => 0,
       soundCloudSnapshotMatchesItem: () => false
+    }
+  );
+};
+
+const spotifyConfirmPlaying = () => {
+  if (!window.SpotifyConfirmPlaying) {
+    console.warn("SpotifyConfirmPlaying missing; load /spotifyConfirmPlaying.js before /app.js");
+  }
+  return (
+    window.SpotifyConfirmPlaying || {
+      spotifySdkTrackId: (state) => state?.track_window?.current_track?.id || null,
+      isSpotifyStatePlayingTrack: (state, trackId) => {
+        if (!trackId || !state) return false;
+        const sdkId = state?.track_window?.current_track?.id;
+        return sdkId === trackId && !state.paused;
+      },
+      needsSpotifyPlaybackRetry: (state, trackId) => {
+        if (!trackId || !state) return true;
+        const sdkId = state?.track_window?.current_track?.id;
+        return sdkId !== trackId || Boolean(state.paused);
+      },
+      shouldScheduleAutoAdvanceAfterTrackAdvance: ({ provider, playbackStarted }) =>
+        provider === "spotify" ? Boolean(playbackStarted) : true,
+      DEFAULT_CONFIRM_POLL_MS: 200,
+      DEFAULT_CONFIRM_TIMEOUT_MS: 3000,
+      computeConfirmPollDeadline: (timeoutMs, nowMs = Date.now()) =>
+        nowMs + Math.max(0, Number(timeoutMs) || 3000)
     }
   );
 };
@@ -2453,6 +2481,98 @@ const tryRestoreSpotifyAfterDeviceReady = async () => {
   });
 };
 
+const withSpotifyRestoreLock = (fn) => {
+  const run = spotifyRestoreChain.then(() => fn());
+  spotifyRestoreChain = run.catch(() => {});
+  return run;
+};
+
+const spotifyPlaybackDelay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const getSpotifySdkState = async () => {
+  if (!spotifyPlayer || typeof spotifyPlayer.getCurrentState !== "function") return null;
+  try {
+    return await spotifyPlayer.getCurrentState();
+  } catch (e) {
+    pushPlaybackSdkEvent("getCurrentState_failed", e?.message || String(e));
+    return null;
+  }
+};
+
+const spotifyPlayerResume = async () => {
+  if (!spotifyPlayer || typeof spotifyPlayer.resume !== "function") return false;
+  try {
+    await spotifyPlayer.resume();
+    return true;
+  } catch (e) {
+    pushPlaybackSdkEvent("resume_failed", e?.message || String(e));
+    return false;
+  }
+};
+
+const spotifyWebApiResume = async () => {
+  if (!spotifyDeviceId) return false;
+  try {
+    const response = await apiFetch("/api/spotify/player/resume", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId: spotifyDeviceId })
+    });
+    if (!response.ok) {
+      pushPlaybackSdkEvent("web_resume_failed", String(response.status));
+      return false;
+    }
+    return true;
+  } catch (e) {
+    pushPlaybackSdkEvent("web_resume_failed", e?.message || String(e));
+    return false;
+  }
+};
+
+const confirmSpotifyPlaying = async ({ trackId, positionMs = 0, timeoutMs } = {}) => {
+  const confirm = spotifyConfirmPlaying();
+  const pollMs = confirm.DEFAULT_CONFIRM_POLL_MS;
+  const deadline = confirm.computeConfirmPollDeadline(
+    timeoutMs ?? confirm.DEFAULT_CONFIRM_TIMEOUT_MS
+  );
+
+  while (Date.now() < deadline) {
+    const state = await getSpotifySdkState();
+    if (confirm.isSpotifyStatePlayingTrack(state, trackId)) {
+      return true;
+    }
+    await spotifyPlaybackDelay(pollMs);
+  }
+
+  await spotifyPlayerResume();
+  await spotifyPlaybackDelay(300);
+  let state = await getSpotifySdkState();
+  if (confirm.isSpotifyStatePlayingTrack(state, trackId)) return true;
+
+  await spotifyWebApiResume();
+  await spotifyPlaybackDelay(300);
+  state = await getSpotifySdkState();
+  if (confirm.isSpotifyStatePlayingTrack(state, trackId)) return true;
+
+  const response = await apiFetch("/api/spotify/player/play", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      deviceId: spotifyDeviceId,
+      trackId,
+      positionMs: Math.max(0, Math.round(Number(positionMs) || 0))
+    })
+  });
+  if (!response.ok) {
+    pushPlaybackSdkEvent("confirm_replay_failed", String(response.status));
+    return false;
+  }
+  await spotifyPlayerResume();
+  await spotifyPlaybackDelay(300);
+  state = await getSpotifySdkState();
+  return confirm.isSpotifyStatePlayingTrack(state, trackId);
+};
+
 const ensureSpotifyNowPlaying = async ({
   trackId,
   positionMs,
@@ -2468,24 +2588,22 @@ const ensureSpotifyNowPlaying = async ({
     initSpotifySdk();
   }
 
-  if (userInitiated) {
-    spotifyPlaybackPendingUserResume = true;
-    await ensureSpotifyActivationGesture();
-  }
+  return withSpotifyRestoreLock(async () => {
+    if (userInitiated) {
+      spotifyPlaybackPendingUserResume = true;
+      await ensureSpotifyActivationGesture();
+    }
 
-  const ready = await waitForSpotifyDevice(20000);
-  if (!ready) {
-    spotifyPlaybackPendingUserResume = true;
-    setSpotifyReconnectBanner(
-      "Spotify Web Player is still connecting. Press Play again in a few seconds, or check the browser console if this persists."
-    );
-    return false;
-  }
+    const ready = await waitForSpotifyDevice(20000);
+    if (!ready) {
+      spotifyPlaybackPendingUserResume = true;
+      setSpotifyReconnectBanner(
+        "Spotify Web Player is still connecting. Press Play again in a few seconds, or check the browser console if this persists."
+      );
+      return false;
+    }
 
-  setSpotifyReconnectBanner("");
-  if (spotifyRestoreInFlight) return false;
-  spotifyRestoreInFlight = true;
-  try {
+    setSpotifyReconnectBanner("");
     const snap = spotifyReloadSnap().readSpotifyReloadSnapshot(sessionStorage);
     const startMs = spotifyReloadSnap().resolveSpotifyResumePositionMs(
       { trackId: resolvedTrackId, index: idx, durationSec: item.durationSec },
@@ -2519,19 +2637,29 @@ const ensureSpotifyNowPlaying = async ({
     spotifyPausedByUser = false;
     spotifyPlaybackPendingUserResume = false;
     spotifyReloadNeedsUserResume = false;
-    if (spotifyPlayer && typeof spotifyPlayer.resume === "function") {
-      try {
-        await spotifyPlayer.resume();
-      } catch (_) {}
-    }
+    await spotifyPlayerResume();
     await syncSpotifyPlaybackFromDevice();
+
+    if (!userInitiated) {
+      const confirmed = await confirmSpotifyPlaying({
+        trackId: resolvedTrackId,
+        positionMs: startMs
+      });
+      if (!confirmed) {
+        spotifyPlaybackPendingUserResume = true;
+        setSpotifyReconnectBanner(
+          "Next track loaded but didn't start. Press Play to resume."
+        );
+        pushPlaybackSdkEvent("confirm_playing_failed", resolvedTrackId);
+        return false;
+      }
+    }
+
     recordSpotifyWallAnchor(idx, resolvedTrackId);
     flushSpotifyReloadSnapshot();
     if (scheduleAdvance) scheduleAutoAdvance();
     return true;
-  } finally {
-    spotifyRestoreInFlight = false;
-  }
+  });
 };
 
 const playSpotifyTrack = async (trackId, options = {}) => {
@@ -2612,9 +2740,7 @@ const spotifyResume = async () => {
     }
 
     setSpotifyReconnectBanner("");
-    if (spotifyPlayer && typeof spotifyPlayer.resume === "function") {
-      await spotifyPlayer.resume();
-    }
+    await spotifyPlayerResume();
     spotifyPausedByUser = false;
     spotifyReloadNeedsUserResume = false;
     spotifyPlaybackPendingUserResume = false;
@@ -3088,14 +3214,28 @@ const advanceTrack = async (reason) => {
     }
     renderNowPlaying();
     renderQueue();
+    let playbackStarted = true;
     if (idx >= 0 && idx < queueState.queue.length) {
       const item = queueState.queue[idx];
       clearSpotifyReloadSnapshotForQueueChange();
       if (item.provider === "spotify") {
-        await playSpotifyTrack(item.trackId);
+        playbackStarted = await playSpotifyTrack(item.trackId, { scheduleAdvance: false });
+        if (!playbackStarted) {
+          spotifyPlaybackPendingUserResume = true;
+          pushPlaybackSdkEvent("advance_play_failed", item.trackId || "");
+        }
       }
     }
-    scheduleAutoAdvance();
+    const advanceItem =
+      idx >= 0 && idx < queueState.queue.length ? queueState.queue[idx] : null;
+    if (
+      spotifyConfirmPlaying().shouldScheduleAutoAdvanceAfterTrackAdvance({
+        provider: advanceItem?.provider,
+        playbackStarted
+      })
+    ) {
+      scheduleAutoAdvance();
+    }
   } finally {
     advanceTrackInFlight = false;
   }

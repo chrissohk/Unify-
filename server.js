@@ -11,7 +11,9 @@ const {
   resolveEffectiveCurrentIndex,
   selectNowPlayingWithReorder,
   pruneQueueAfterLeavingTrack,
-  mapQueueAfterPrune
+  mapQueueAfterPrune,
+  upcomingQueueEntries,
+  clearUpcomingQueue
 } = require("./lib/reorderQueue");
 const { isTestResetAllowed } = require("./lib/testReset");
 const store = require("./lib/store");
@@ -1650,6 +1652,34 @@ app.post("/api/queue", (req, res) => {
     lastError: null
   });
   return res.status(201).json(queueItem);
+});
+
+app.delete("/api/queue/upcoming", (_req, res) => {
+  const upcoming = upcomingQueueEntries(queueState.queue, queueState.currentIndex);
+  if (upcoming.length === 0) {
+    return res.status(204).send();
+  }
+
+  const result = clearUpcomingQueue(queueState.queue, queueState.currentIndex);
+  if (!result.ok) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  let nextStatus = queueState.status;
+  if (result.queueEmpty) {
+    nextStatus = "idle";
+  } else if (queueState.status === "idle") {
+    nextStatus = "ready";
+  }
+
+  setQueueState({
+    queue: result.nextQueue,
+    currentIndex: result.nextCurrentIndex,
+    status: nextStatus,
+    lastError: result.queueEmpty ? null : queueState.lastError
+  });
+
+  return res.status(204).send();
 });
 
 app.delete("/api/queue/:id", (req, res) => {

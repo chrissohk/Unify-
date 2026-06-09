@@ -43,6 +43,25 @@ test.describe("unified queue", () => {
     await expect(page.locator("#queueList li.queue-row")).toHaveCount(0);
   });
 
+  test("clear all removes up-next while keeping now playing", async ({ page, request }) => {
+    await request.post("/api/auth/spotify/connect");
+    await request.post("/api/auth/soundcloud/connect");
+    await request.post("/api/queue", { data: { provider: "spotify", trackId: "sp-1" } });
+    await request.post("/api/queue", { data: { provider: "soundcloud", trackId: "sc-1" } });
+    await request.post("/api/queue/now-playing", { data: { index: 0 } });
+
+    await page.goto("/");
+    await page.getByTestId("tab-now-playing").click();
+
+    const clearAll = page.getByTestId("queue-clear-all");
+    await expect(clearAll).toBeEnabled();
+    await clearAll.click();
+
+    await expect(page.locator("#queueList li.queue-row")).toHaveCount(0);
+    await expect(page.getByTestId("tab-now-playing-ticker")).toContainText(" - ");
+    await expect(clearAll).toBeDisabled();
+  });
+
   test("while playing, up-next hides the current track", async ({ page, request }) => {
     await request.post("/api/auth/spotify/connect");
     await request.post("/api/auth/soundcloud/connect");

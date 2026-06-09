@@ -222,7 +222,18 @@
 
       <div class="listening-desk" data-testid="listening-desk">
         <aside class="queue-rail card card--rail" aria-label="Up next">
-          <h2 class="queue-rail__title">Up next</h2>
+          <div class="queue-rail__head">
+            <h2 class="queue-rail__title">Up next</h2>
+            <button
+              type="button"
+              id="queueClearAll"
+              class="queue-clear-all-btn"
+              data-testid="queue-clear-all"
+              disabled
+            >
+              Clear all
+            </button>
+          </div>
           <ul id="queueList" class="queue-rail__list"></ul>
         </aside>
 
@@ -1663,6 +1674,7 @@
     <script src="/queueAutoPlay.js"></script>
     <script src="/filterPlaylistTracks.js"></script>
     <script src="/sortPlaylistTracks.js"></script>
+    <script src="/playlistTrackDisplay.js"></script>
     <script src="/appleMusicBrowse.js"></script>
     <script src="/app.js"></script>
   </body>

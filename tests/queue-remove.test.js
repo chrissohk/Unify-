@@ -9,7 +9,8 @@ const {
   mapQueueForNowPlaying,
   resolveEffectiveCurrentIndex,
   selectNowPlayingWithReorder,
-  upcomingQueueEntries
+  upcomingQueueEntries,
+  clearUpcomingQueue
 } = require("../lib/reorderQueue");
 
 const app = require("../server");
@@ -217,4 +218,77 @@ test("advance on last track empties queue", async () => {
   assert.equal(state.body.queue.length, 0);
   assert.equal(state.body.currentIndex, -1);
   assert.equal(state.body.status, "idle");
+});
+
+test("clearUpcomingQueue empties queue when idle", () => {
+  const queue = [
+    { id: "a", status: "queued" },
+    { id: "b", status: "queued" }
+  ];
+  const result = clearUpcomingQueue(queue, -1);
+  assert.equal(result.ok, true);
+  assert.equal(result.nextQueue.length, 0);
+  assert.equal(result.nextCurrentIndex, -1);
+  assert.equal(result.queueEmpty, true);
+});
+
+test("clearUpcomingQueue keeps now playing track only", () => {
+  const queue = [
+    { id: "a", status: "played", trackId: "sp-1" },
+    { id: "b", status: "playing", trackId: "sp-2" },
+    { id: "c", status: "queued", trackId: "sp-3" }
+  ];
+  const result = clearUpcomingQueue(queue, 1);
+  assert.equal(result.ok, true);
+  assert.equal(result.nextQueue.length, 1);
+  assert.equal(result.nextCurrentIndex, 0);
+  assert.equal(result.nextQueue[0].trackId, "sp-2");
+  assert.equal(result.nextQueue[0].status, "playing");
+  assert.equal(result.queueEmpty, false);
+});
+
+test("DELETE /api/queue/upcoming clears idle queue", async () => {
+  await connectProvider("spotify");
+  await addTrack("spotify", "sp-1");
+  await addTrack("spotify", "sp-2");
+  await addTrack("spotify", "sp-3");
+
+  await request(app).delete("/api/queue/upcoming").expect(204);
+
+  const state = await request(app).get("/api/queue").expect(200);
+  assert.equal(state.body.queue.length, 0);
+  assert.equal(state.body.currentIndex, -1);
+  assert.equal(state.body.status, "idle");
+});
+
+test("DELETE /api/queue/upcoming while playing keeps now playing only", async () => {
+  await connectProvider("spotify");
+  await addTrack("spotify", "sp-1");
+  const second = await addTrack("spotify", "sp-2");
+  await addTrack("spotify", "sp-3");
+
+  await request(app).post("/api/queue/now-playing").send({ index: 1 }).expect(200);
+
+  await request(app).delete("/api/queue/upcoming").expect(204);
+
+  const state = await request(app).get("/api/queue").expect(200);
+  assert.equal(state.body.queue.length, 1);
+  assert.equal(state.body.currentIndex, 0);
+  assert.equal(state.body.queue[0].id, second.id);
+  assert.equal(state.body.queue[0].trackId, "sp-2");
+  assert.equal(state.body.queue[0].status, "playing");
+});
+
+test("DELETE /api/queue/upcoming is no-op when nothing to clear while playing", async () => {
+  await connectProvider("spotify");
+  const only = await addTrack("spotify", "sp-1");
+
+  await request(app).post("/api/queue/now-playing").send({ index: 0 }).expect(200);
+
+  await request(app).delete("/api/queue/upcoming").expect(204);
+
+  const state = await request(app).get("/api/queue").expect(200);
+  assert.equal(state.body.queue.length, 1);
+  assert.equal(state.body.currentIndex, 0);
+  assert.equal(state.body.queue[0].id, only.id);
 });

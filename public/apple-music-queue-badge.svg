@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-hidden="true">
+  <defs>
+    <linearGradient id="apple-music-badge-gradient" x1="12" y1="2" x2="12" y2="22" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF5E62" />
+      <stop offset="1" stop-color="#FF2D55" />
+    </linearGradient>
+  </defs>
+  <rect width="24" height="24" rx="5.4" fill="url(#apple-music-badge-gradient)" />
+  <g fill="#FFFFFF">
+    <ellipse cx="8.15" cy="17.25" rx="1.85" ry="1.7" />
+    <ellipse cx="15.05" cy="14.85" rx="1.85" ry="1.7" />
+    <path d="M9.95 5.4h2v11.95a1.85 1.7 0 1 1-2 0V5.4z" />
+    <path d="M16.85 2.9h2v11.95a1.85 1.7 0 1 1-2 0V2.9z" />
+    <path d="M9.95 5.4h9.1l-1.9 3.35H9.95V5.4z" />
+  </g>
+</svg>

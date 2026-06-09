@@ -1403,7 +1403,7 @@ const spotifyAdvance = () => {
 
 const SPOTIFY_QUEUE_BADGE_SRC = "/spotify-queue-badge.png";
 const SOUNDCLOUD_QUEUE_BADGE_SRC = "/soundcloud-queue-badge.png";
-const APPLE_MUSIC_QUEUE_BADGE_SRC = "/apple-music-queue-badge.png";
+const APPLE_MUSIC_QUEUE_BADGE_SRC = "/apple-music-queue-badge.svg";
 
 const createSpotifyQueueBadge = ({ testId = "queue-provider-spotify" } = {}) => {
   const img = document.createElement("img");
@@ -3865,7 +3865,7 @@ const bindProviderConnectButton = (button, providerState) => {
 
 const providerBadgeSrc = (provider) => {
   if (provider === "spotify") return "/spotify-queue-badge.png";
-  if (provider === "applemusic") return "/apple-music-queue-badge.png";
+  if (provider === "applemusic") return "/apple-music-queue-badge.svg";
   return "/soundcloud-queue-badge.png";
 };
 

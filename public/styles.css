@@ -960,6 +960,14 @@ body:not(.is-loading) {
   flex-shrink: 0;
 }
 
+.tab-brand-icon--applemusic,
+.search-heading-icon--applemusic,
+img.provider-badge-applemusic,
+.provider-status img.provider-badge-applemusic,
+.provider-rail-icon[src*="apple-music-queue-badge"] {
+  background: transparent;
+}
+
 .tab-btn--now-playing {
   padding-inline: 12px;
 }

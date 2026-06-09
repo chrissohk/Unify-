@@ -2,7 +2,7 @@
  * Apple Music browse tab — library, search, albums. Playback wiring comes later.
  */
 (function initAppleMusicBrowseModule() {
-  const APPLE_BADGE = "/apple-music-queue-badge.png";
+  const APPLE_BADGE = "/apple-music-queue-badge.svg";
 
   let deps = null;
   let appleMusicServerConfig = { configured: false };
@@ -21,6 +21,8 @@
     likedSongs: null,
     ownedItems: [],
     ownedNextOffset: null,
+    likedItems: [],
+    likedNextOffset: null,
     libraryFilterQuery: "",
     selectedPlaylistId: null,
     selectedPlaylistTitle: "",
@@ -169,8 +171,8 @@
     renderAppleMusicSearchResults();
   };
 
-  const fetchAppleMusicLibraryPage = async (ownedOffset) => {
-    const path = `/api/applemusic/playlists?ownedLimit=30&ownedOffset=${ownedOffset}`;
+  const fetchAppleMusicLibraryPage = async (ownedOffset, likedOffset = 0) => {
+    const path = `/api/applemusic/playlists?ownedLimit=30&ownedOffset=${ownedOffset}&likedLimit=30&likedOffset=${likedOffset}`;
     const res = await deps.apiFetch(path);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -200,8 +202,9 @@
   };
 
   const renderAppleMusicLibraryRows = () => {
-    const likedList = el("appleMusicLikedSongsList");
+    const likedSongsList = el("appleMusicLikedSongsList");
     const ownedList = el("appleMusicOwnedPlaylistList");
+    const likedPlaylistList = el("appleMusicLikedPlaylistList");
     const filterEmpty = el("appleMusicLibraryFilterEmpty");
     const filterInput = el("appleMusicLibraryFilter");
     const q = (filterInput?.value || appleMusicPlaylistBrowser.libraryFilterQuery || "")
@@ -211,11 +214,11 @@
 
     const matches = (name) => !q || String(name || "").toLowerCase().includes(q);
 
-    if (likedList) {
-      likedList.innerHTML = "";
+    if (likedSongsList) {
+      likedSongsList.innerHTML = "";
       const liked = appleMusicPlaylistBrowser.likedSongs;
       if (liked && matches(liked.name)) {
-        deps.appendPlaylistRow(likedList, liked, () => openAppleMusicPlaylist(liked));
+        deps.appendPlaylistRow(likedSongsList, liked, () => openAppleMusicPlaylist(liked));
       }
     }
 
@@ -226,9 +229,17 @@
         .forEach((p) => deps.appendPlaylistRow(ownedList, p, () => openAppleMusicPlaylist(p)));
     }
 
+    if (likedPlaylistList) {
+      likedPlaylistList.innerHTML = "";
+      appleMusicPlaylistBrowser.likedItems
+        .filter((p) => matches(p.name))
+        .forEach((p) => deps.appendPlaylistRow(likedPlaylistList, p, () => openAppleMusicPlaylist(p)));
+    }
+
     const anyVisible =
       (appleMusicPlaylistBrowser.likedSongs && matches(appleMusicPlaylistBrowser.likedSongs.name)) ||
-      appleMusicPlaylistBrowser.ownedItems.some((p) => matches(p.name));
+      appleMusicPlaylistBrowser.ownedItems.some((p) => matches(p.name)) ||
+      appleMusicPlaylistBrowser.likedItems.some((p) => matches(p.name));
 
     if (filterEmpty) {
       filterEmpty.hidden = !q || anyVisible;
@@ -237,6 +248,10 @@
     const moreBtn = el("appleMusicPlaylistsMore");
     if (moreBtn) {
       moreBtn.hidden = Boolean(q) || appleMusicPlaylistBrowser.ownedNextOffset === null;
+    }
+    const likedMoreBtn = el("appleMusicLikedPlaylistsMore");
+    if (likedMoreBtn) {
+      likedMoreBtn.hidden = Boolean(q) || appleMusicPlaylistBrowser.likedNextOffset === null;
     }
   };
 
@@ -293,6 +308,7 @@
       setAppleMusicPlaylistLoading(false);
       if (el("appleMusicLikedSongsList")) el("appleMusicLikedSongsList").innerHTML = "";
       if (el("appleMusicOwnedPlaylistList")) el("appleMusicOwnedPlaylistList").innerHTML = "";
+      if (el("appleMusicLikedPlaylistList")) el("appleMusicLikedPlaylistList").innerHTML = "";
       hideAppleMusicPlaylistTracksPane();
       setAppleMusicPlaylistStatus(appleMusicSetupMessage(), { visible: true });
       return;
@@ -303,6 +319,7 @@
       setAppleMusicPlaylistLoading(false);
       if (el("appleMusicLikedSongsList")) el("appleMusicLikedSongsList").innerHTML = "";
       if (el("appleMusicOwnedPlaylistList")) el("appleMusicOwnedPlaylistList").innerHTML = "";
+      if (el("appleMusicLikedPlaylistList")) el("appleMusicLikedPlaylistList").innerHTML = "";
       hideAppleMusicPlaylistTracksPane();
       setAppleMusicPlaylistStatus("Connect Apple Music to browse your library.", { visible: true });
       return;
@@ -318,13 +335,18 @@
         setAppleMusicPlaylistStatus(deps.playlistApiUnavailableMessage(probe.reason), { visible: true });
         return;
       }
-      const data = await fetchAppleMusicLibraryPage(0);
+      const data = await fetchAppleMusicLibraryPage(0, 0);
       appleMusicPlaylistBrowser.likedSongs = data.likedSongs || null;
       appleMusicPlaylistBrowser.ownedItems = data.owned?.items || [];
       appleMusicPlaylistBrowser.ownedNextOffset =
         data.owned?.nextOffset === null || data.owned?.nextOffset === undefined
           ? null
           : data.owned.nextOffset;
+      appleMusicPlaylistBrowser.likedItems = data.likedPlaylists?.items || [];
+      appleMusicPlaylistBrowser.likedNextOffset =
+        data.likedPlaylists?.nextOffset === null || data.likedPlaylists?.nextOffset === undefined
+          ? null
+          : data.likedPlaylists.nextOffset;
       appleMusicPlaylistBrowser.demoMode = Boolean(data.demoMode);
       renderAppleMusicLibraryRows();
     } catch (e) {
@@ -408,12 +430,36 @@
       if (!btn || appleMusicPlaylistBrowser.ownedNextOffset === null) return;
       btn.disabled = true;
       try {
-        const data = await fetchAppleMusicLibraryPage(appleMusicPlaylistBrowser.ownedNextOffset);
+        const data = await fetchAppleMusicLibraryPage(
+          appleMusicPlaylistBrowser.ownedNextOffset,
+          appleMusicPlaylistBrowser.likedNextOffset || 0
+        );
         appleMusicPlaylistBrowser.ownedItems.push(...(data.owned?.items || []));
         appleMusicPlaylistBrowser.ownedNextOffset =
           data.owned?.nextOffset === null || data.owned?.nextOffset === undefined
             ? null
             : data.owned.nextOffset;
+        renderAppleMusicLibraryRows();
+      } catch (e) {
+        deps.alertUnlessAuthNotice("applemusic", e.message, "Load more failed");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    el("appleMusicLikedPlaylistsMore")?.addEventListener("click", async () => {
+      const btn = el("appleMusicLikedPlaylistsMore");
+      if (!btn || appleMusicPlaylistBrowser.likedNextOffset === null) return;
+      btn.disabled = true;
+      try {
+        const data = await fetchAppleMusicLibraryPage(
+          appleMusicPlaylistBrowser.ownedNextOffset || 0,
+          appleMusicPlaylistBrowser.likedNextOffset
+        );
+        appleMusicPlaylistBrowser.likedItems.push(...(data.likedPlaylists?.items || []));
+        appleMusicPlaylistBrowser.likedNextOffset =
+          data.likedPlaylists?.nextOffset === null || data.likedPlaylists?.nextOffset === undefined
+            ? null
+            : data.likedPlaylists.nextOffset;
         renderAppleMusicLibraryRows();
       } catch (e) {
         deps.alertUnlessAuthNotice("applemusic", e.message, "Load more failed");

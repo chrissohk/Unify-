@@ -177,6 +177,20 @@ function mockAppleMusicPlaylistSummaries() {
   ];
 }
 
+function mockAppleMusicLikedPlaylistSummaries() {
+  return [
+    {
+      id: APPLE_DEMO_LIKED_PLAYLIST_ID,
+      name: "Demo liked playlist",
+      ownerDisplayName: "Curator",
+      trackCount: providers.applemusic.tracks.length,
+      imageUrl: providers.applemusic.tracks[0]?.imageUrl,
+      provider: "applemusic",
+      kind: "liked_playlist"
+    }
+  ];
+}
+
 function mockAppleMusicLikedSongsSummary() {
   return {
     id: APPLE_LIKED_SONGS_ID,
@@ -204,6 +218,7 @@ function mockAppleMusicPlaylistTracks(playlistId) {
   if (
     playlistId === APPLE_LIKED_SONGS_ID ||
     playlistId === APPLE_DEMO_PLAYLIST_ID ||
+    playlistId === APPLE_DEMO_LIKED_PLAYLIST_ID ||
     playlistId === APPLE_DEMO_ALBUM_ID
   ) {
     return tracks;
@@ -211,13 +226,23 @@ function mockAppleMusicPlaylistTracks(playlistId) {
   return null;
 }
 
-function mockAppleMusicLibrary() {
+function sliceLibraryPage(items, offset, limit) {
+  const slice = items.slice(offset, offset + limit);
+  const nextOffset = offset + slice.length < items.length ? offset + slice.length : null;
+  return { items: slice, nextOffset };
+}
+
+function mockAppleMusicLibrary({ ownedOffset = 0, ownedLimit = 30, likedOffset = 0, likedLimit = 30 } = {}) {
+  const owned = sliceLibraryPage(mockAppleMusicPlaylistSummaries(), ownedOffset, ownedLimit);
+  const likedPlaylists = sliceLibraryPage(
+    mockAppleMusicLikedPlaylistSummaries(),
+    likedOffset,
+    likedLimit
+  );
   return {
     likedSongs: mockAppleMusicLikedSongsSummary(),
-    owned: {
-      items: mockAppleMusicPlaylistSummaries(),
-      nextOffset: null
-    }
+    owned,
+    likedPlaylists
   };
 }
 
@@ -231,6 +256,7 @@ const SPOTIFY_DEMO_PLAYLIST_ID = "demo-playlist";
 const SPOTIFY_DEMO_ALBUM_ID = "demo-album";
 /** Stable ids for Apple Music demo browse (credentials + simulated connect). */
 const APPLE_DEMO_PLAYLIST_ID = "demo-playlist";
+const APPLE_DEMO_LIKED_PLAYLIST_ID = "demo-liked-playlist";
 const APPLE_DEMO_ALBUM_ID = "demo-album";
 const APPLE_LIKED_SONGS_ID = "__liked_songs__";
 
@@ -1464,8 +1490,15 @@ app.get("/api/applemusic/playlists", async (req, res) => {
   if (!connectCheck.ok) {
     return res.status(401).json({ error: connectCheck.message, code: connectCheck.code });
   }
+  const ownedLimit = Math.min(Number(req.query.ownedLimit || 30) || 30, 50);
+  const ownedOffset = Math.max(Number(req.query.ownedOffset || 0) || 0, 0);
+  const likedLimit = Math.min(Number(req.query.likedLimit || 30) || 30, 50);
+  const likedOffset = Math.max(Number(req.query.likedOffset || 0) || 0, 0);
   if (appleMusicAllowsDemoCatalog()) {
-    return res.json({ ...mockAppleMusicLibrary(), demoMode: true });
+    return res.json({
+      ...mockAppleMusicLibrary({ ownedOffset, ownedLimit, likedOffset, likedLimit }),
+      demoMode: true
+    });
   }
   return res.status(503).json({
     error: "Live Apple Music library is not enabled yet. Server credentials are present.",

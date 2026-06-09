@@ -1,5 +1,6 @@
 const spotifyProviderControls = document.getElementById("spotifyProviderControls");
 const soundcloudProviderControls = document.getElementById("soundcloudProviderControls");
+const appleMusicProviderControls = document.getElementById("appleMusicProviderControls");
 const statusRailProviders = document.getElementById("statusRailProviders");
 const authNoticeEl = document.getElementById("authNotice");
 const spotifySearchForm = document.getElementById("spotifySearchForm");
@@ -42,8 +43,10 @@ const soundcloudAlbumTracksMore = document.getElementById("soundcloudAlbumTracks
 const tabNowPlaying = document.getElementById("tab-now-playing");
 const tabSpotifySearch = document.getElementById("tab-spotify-search");
 const tabSoundcloudSearch = document.getElementById("tab-soundcloud-search");
+const tabAppleMusicSearch = document.getElementById("tab-applemusic-search");
 const panelNowPlaying = document.getElementById("panel-now-playing");
 const panelSpotifySearch = document.getElementById("panel-spotify-search");
+const panelAppleMusicSearch = document.getElementById("panel-applemusic-search");
 const panelSoundcloudSearch = document.getElementById("panel-soundcloud-search");
 const spotifyPlaylistLoading = document.getElementById("spotifyPlaylistLoading");
 const spotifyPlaylistStatus = document.getElementById("spotifyPlaylistStatus");
@@ -839,7 +842,7 @@ const bootstrapBrowserSession = async () => {
 const setNowPlayingRowProvider = (provider) => {
   if (!nowPlayingRow) return;
   nowPlayingRow.className = "now-playing-row";
-  if (provider === "spotify" || provider === "soundcloud") {
+  if (provider === "spotify" || provider === "soundcloud" || provider === "applemusic") {
     nowPlayingRow.classList.add(`now-playing-row--${provider}`);
   }
 };
@@ -936,7 +939,7 @@ let spotifyReloadNeedsUserResume = false;
 /** Serializes overlapping ensureSpotifyNowPlaying calls (auto-advance vs manual play). */
 let spotifyRestoreChain = Promise.resolve();
 /** Per-provider auth issues from API health or failed requests (spotify | soundcloud). */
-const providerAuthIssues = { spotify: null, soundcloud: null };
+const providerAuthIssues = { spotify: null, soundcloud: null, applemusic: null };
 let authSuccessToast = null;
 let authNoticeShowTimer = null;
 let authNoticeFadeFallbackTimer = null;
@@ -1020,6 +1023,7 @@ const isAuthErrorCode = (code) => {
   if (AUTH_RECONNECT_CODES.has(c) || AUTH_CONNECT_CODES.has(c)) return true;
   if (c.includes("REFRESH") || c.includes("TOKEN_")) return true;
   if (c === "SPOTIFY_OAUTH_CONFIG_MISSING" || c === "SOUNDCLOUD_OAUTH_CONFIG_MISSING") return true;
+  if (c === "APPLE_MUSIC_NOT_CONFIGURED" || c === "APPLE_MUSIC_API_PENDING") return true;
   return false;
 };
 
@@ -1088,6 +1092,14 @@ const resolveAuthIssue = (provider, code, serverMessage, serverHint, healthActio
 const syncProviderAuthFromHealth = () => {
   providers.forEach((p) => {
     if (p.health === "degraded" || p.health === "rate_limited") {
+      providerAuthIssues[p.provider] = resolveAuthIssue(
+        p.provider,
+        p.healthCode,
+        p.healthMessage,
+        null,
+        p.healthAction
+      );
+    } else if (p.health === "unconfigured") {
       providerAuthIssues[p.provider] = resolveAuthIssue(
         p.provider,
         p.healthCode,
@@ -1391,6 +1403,7 @@ const spotifyAdvance = () => {
 
 const SPOTIFY_QUEUE_BADGE_SRC = "/spotify-queue-badge.png";
 const SOUNDCLOUD_QUEUE_BADGE_SRC = "/soundcloud-queue-badge.png";
+const APPLE_MUSIC_QUEUE_BADGE_SRC = "/apple-music-queue-badge.png";
 
 const createSpotifyQueueBadge = ({ testId = "queue-provider-spotify" } = {}) => {
   const img = document.createElement("img");
@@ -1422,10 +1435,22 @@ const createSoundcloudQueueBadge = ({ testId = "queue-provider-soundcloud" } = {
   return img;
 };
 
+const createAppleMusicQueueBadge = ({ testId = "queue-provider-applemusic" } = {}) => {
+  const img = document.createElement("img");
+  img.src = APPLE_MUSIC_QUEUE_BADGE_SRC;
+  img.alt = "Apple Music";
+  img.className = "provider-badge-applemusic";
+  if (testId) img.setAttribute("data-testid", testId);
+  img.decoding = "async";
+  img.loading = "lazy";
+  return img;
+};
+
 /** Display name for provider keys (API remains lowercase). */
 const formatProviderLabel = (provider) => {
   if (provider === "spotify") return "Spotify";
   if (provider === "soundcloud") return "SoundCloud";
+  if (provider === "applemusic") return "Apple Music";
   if (!provider) return "";
   return provider.charAt(0).toUpperCase() + provider.slice(1);
 };
@@ -1437,6 +1462,10 @@ const appendProviderBadge = (parent, provider) => {
   }
   if (provider === "soundcloud") {
     parent.appendChild(createSoundcloudQueueBadge());
+    return;
+  }
+  if (provider === "applemusic") {
+    parent.appendChild(createAppleMusicQueueBadge());
     return;
   }
   parent.appendChild(document.createTextNode(`[${formatProviderLabel(provider)}]`));
@@ -2808,6 +2837,9 @@ const fetchProviders = async () => {
   if (tabSoundcloudSearch?.classList.contains("is-selected")) {
     void bootstrapSoundCloudPlaylistBrowser();
   }
+  if (tabAppleMusicSearch?.classList.contains("is-selected")) {
+    globalThis.unifyAppleMusicBrowse?.bootstrap?.();
+  }
 };
 
 const fetchQueueState = async () => {
@@ -3131,6 +3163,39 @@ const trackEmbed = (item) => {
       </div>
     `;
   }
+  if (item.provider === "applemusic") {
+    const progressTotal = Math.max(0, Number(item.durationSec || 0) * 1000);
+    const title = item.title || "Apple Music track";
+    const artist = item.artist || "";
+    const configured = globalThis.unifyAppleMusicBrowse?.isConfigured?.() ?? false;
+    const hint = configured
+      ? "Apple Music playback will start here after MusicKit sign-in is wired up."
+      : globalThis.unifyAppleMusicBrowse?.setupMessage?.() ||
+        "Add Apple Music server credentials in .env to enable playback.";
+    return `
+      <div class="applemusic-sdk-panel">
+        <p class="applemusic-playback-hint" data-testid="applemusic-playback-hint">${escapeHtmlText(hint)}</p>
+        ${buildNowPlayingLayout({
+          providerClass: "applemusic-layout-shell",
+          title,
+          artist,
+          progressNow: 0,
+          progressTotal,
+          progressPercent: 0,
+          progressClass: "applemusic-progress-row",
+          progressWrapClass: "applemusic-progress-wrap",
+          progressTrackClass: "applemusic-progress-track",
+          progressFillClass: "applemusic-progress-fill",
+          rangeClass: "applemusic-progress-range",
+          elapsedClass: "applemusic-time-elapsed",
+          totalClass: "applemusic-time-total",
+          controlsHtml: `<div class="applemusic-transport">
+            <button type="button" class="applemusic-transport-btn applemusic-transport-btn--primary" data-testid="applemusic-play-pause" disabled aria-label="Play">Play</button>
+          </div>`
+        })}
+      </div>
+    `;
+  }
   const scUrl = soundCloudEmbedPermalink(item);
   const dataPerm = escapeHtmlAttr(scUrl);
   const progressNow = soundcloudPlaybackState?.positionMs || 0;
@@ -3405,8 +3470,18 @@ const renderQueue = () => {
   upcoming.forEach(({ item, idx }, displayIndex) => {
     const li = document.createElement("li");
     const prov =
-      item.provider === "spotify" || item.provider === "soundcloud" ? item.provider : "neutral";
+      item.provider === "spotify" ||
+      item.provider === "soundcloud" ||
+      item.provider === "applemusic"
+        ? item.provider
+        : "neutral";
     li.className = `queue-row queue-row--${prov}`;
+
+    const indexEl = document.createElement("span");
+    indexEl.className = "queue-row-index";
+    indexEl.textContent = String(displayIndex + 1);
+    indexEl.setAttribute("aria-hidden", "true");
+    indexEl.setAttribute("data-testid", `queue-index-${idx}`);
 
     const dragHandle = createQueueDragHandle(idx, li, nowPlayingIndex);
     bindQueueRowDragDrop(li, idx, nowPlayingIndex);
@@ -3417,11 +3492,7 @@ const renderQueue = () => {
     meta.className = "queue-row-meta";
     const titleLine = document.createElement("div");
     titleLine.className = "queue-row-title";
-    const indexEl = document.createElement("span");
-    indexEl.className = "queue-row-index";
-    indexEl.textContent = `${displayIndex + 1}.`;
-    titleLine.appendChild(indexEl);
-    titleLine.appendChild(document.createTextNode(` ${item.title || "Untitled"}`));
+    titleLine.appendChild(document.createTextNode(item.title || "Untitled"));
     const artistLine = document.createElement("div");
     artistLine.className = "queue-row-artist";
     artistLine.appendChild(document.createTextNode(item.artist || ""));
@@ -3450,6 +3521,7 @@ const renderQueue = () => {
     actions.appendChild(removeButton);
     actions.appendChild(playButton);
 
+    li.appendChild(indexEl);
     li.appendChild(dragHandle);
     li.appendChild(art);
     li.appendChild(meta);
@@ -3744,6 +3816,17 @@ const renderNowPlaying = () => {
   }
 };
 
+const showAppleMusicSetupNotice = () => {
+  const hint =
+    globalThis.unifyAppleMusicBrowse?.setupMessage?.() ||
+    "Add APPLE_TEAM_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY_PATH to .env, then restart the server.";
+  noteAuthFailure("applemusic", {
+    error: "Apple Music is not configured on this server.",
+    code: "APPLE_MUSIC_NOT_CONFIGURED",
+    hint
+  });
+};
+
 const bindProviderConnectButton = (button, providerState) => {
   button.textContent = providerState.connected ? "Disconnect" : "Connect";
   button.setAttribute(
@@ -3754,6 +3837,15 @@ const bindProviderConnectButton = (button, providerState) => {
   );
   button.setAttribute("data-testid", `connect-${providerState.provider}`);
   button.onclick = async () => {
+    if (!providerState.connected && providerState.provider === "applemusic") {
+      await globalThis.unifyAppleMusicBrowse?.fetchConfig?.();
+      if (!globalThis.unifyAppleMusicBrowse?.isConfigured?.()) {
+        showAppleMusicSetupNotice();
+        return;
+      }
+      window.location.assign(apiUrl("/api/oauth/applemusic/login"));
+      return;
+    }
     if (
       !providerState.connected &&
       (providerState.provider === "spotify" || providerState.provider === "soundcloud")
@@ -3771,8 +3863,11 @@ const bindProviderConnectButton = (button, providerState) => {
   };
 };
 
-const providerBadgeSrc = (provider) =>
-  provider === "spotify" ? "/spotify-queue-badge.png" : "/soundcloud-queue-badge.png";
+const providerBadgeSrc = (provider) => {
+  if (provider === "spotify") return "/spotify-queue-badge.png";
+  if (provider === "applemusic") return "/apple-music-queue-badge.png";
+  return "/soundcloud-queue-badge.png";
+};
 
 const renderProviderRow = (providerState, host, variant = "compact") => {
   if (!host) return;
@@ -3782,7 +3877,11 @@ const renderProviderRow = (providerState, host, variant = "compact") => {
   const text = document.createElement("span");
   text.className = "provider-status";
   if (variant === "rail") {
-    if (providerState.provider === "spotify" || providerState.provider === "soundcloud") {
+    if (
+      providerState.provider === "spotify" ||
+      providerState.provider === "soundcloud" ||
+      providerState.provider === "applemusic"
+    ) {
       const icon = document.createElement("img");
       icon.src = providerBadgeSrc(providerState.provider);
       icon.alt = "";
@@ -3817,6 +3916,7 @@ const renderProviderRow = (providerState, host, variant = "compact") => {
 const renderProviders = () => {
   if (spotifyProviderControls) spotifyProviderControls.innerHTML = "";
   if (soundcloudProviderControls) soundcloudProviderControls.innerHTML = "";
+  if (appleMusicProviderControls) appleMusicProviderControls.innerHTML = "";
   if (statusRailProviders) statusRailProviders.innerHTML = "";
   providers.forEach((providerState) => {
     if (providerState.provider === "spotify") {
@@ -3826,6 +3926,11 @@ const renderProviders = () => {
     }
     if (providerState.provider === "soundcloud") {
       renderProviderRow(providerState, soundcloudProviderControls, "compact");
+      renderProviderRow(providerState, statusRailProviders, "rail");
+      return;
+    }
+    if (providerState.provider === "applemusic") {
+      renderProviderRow(providerState, appleMusicProviderControls, "compact");
       renderProviderRow(providerState, statusRailProviders, "rail");
     }
   });
@@ -3972,6 +4077,14 @@ const appendSoundcloudAlbumRow = (ul, album) => {
     testId: "soundcloud-album-row",
     onSelect: selectSoundcloudAlbum,
     resolveImageUrl: upgradeSoundCloudArtworkUrl
+  });
+};
+
+const appendAppleMusicAlbumRow = (ul, album) => {
+  appendAlbumSearchRow(ul, album, {
+    testId: "applemusic-album-row",
+    onSelect: (selected) => globalThis.unifyAppleMusicBrowse?.openAlbum?.(selected),
+    resolveImageUrl: (url) => url
   });
 };
 
@@ -5236,7 +5349,8 @@ const formatSpotifyPlaylistHttpError = async (res, defaultMsg) => {
 const probePlaylistRouteExists = async (featureKey) => {
   const paths = {
     soundcloudPlaylists: "/api/soundcloud/playlists?ownedLimit=1&likedLimit=0",
-    spotifyPlaylists: "/api/spotify/playlists?limit=1&offset=0"
+    spotifyPlaylists: "/api/spotify/playlists?limit=1&offset=0",
+    appleMusicPlaylists: "/api/applemusic/playlists?ownedLimit=1"
   };
   const path = paths[featureKey];
   if (!path) return false;
@@ -5883,7 +5997,8 @@ const loadMoreSoundCloudPlaylistTracks = async () => {
 const tabBindings = [
   { tab: tabNowPlaying, panel: panelNowPlaying },
   { tab: tabSpotifySearch, panel: panelSpotifySearch },
-  { tab: tabSoundcloudSearch, panel: panelSoundcloudSearch }
+  { tab: tabSoundcloudSearch, panel: panelSoundcloudSearch },
+  { tab: tabAppleMusicSearch, panel: panelAppleMusicSearch }
 ].filter((b) => b.tab && b.panel);
 
 let mainTabIndex = 0;
@@ -5932,6 +6047,9 @@ const selectMainTab = (index) => {
   }
   if (index === 2) {
     void bootstrapSoundCloudPlaylistBrowser();
+  }
+  if (index === 3) {
+    globalThis.unifyAppleMusicBrowse?.bootstrap?.();
   }
 };
 
@@ -6113,6 +6231,26 @@ if (soundcloudTracksMore) {
 
 initLibraryGroupToggles(spotifyLibraryGroups);
 initLibraryGroupToggles(soundcloudLibraryGroups);
+initLibraryGroupToggles(document.getElementById("appleMusicLibraryGroups"));
+
+globalThis.unifyAppleMusicBrowse?.init?.({
+  apiFetch,
+  runProviderSearch,
+  renderTrackList,
+  formatAlbumSearchSubtitle,
+  appendAppleMusicAlbumRow,
+  appendPlaylistRow: (listEl, pl, _testId, onSelect) =>
+    appendSoundCloudPlaylistRow(listEl, pl, "applemusic-playlist-row", onSelect),
+  getDisplayedPlaylistTracks,
+  syncPlaylistTracksPaneStatus,
+  noteAuthFailure,
+  alertUnlessAuthNotice,
+  showAppleMusicSetupNotice,
+  getProviders: () => providers,
+  probePlaylistMetaFeature,
+  playlistApiUnavailableMessage,
+  queueTrackPayload
+});
 
 handleOAuthReturnParams();
 renderPlaybackDiag();
@@ -6135,6 +6273,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 bootstrapBrowserSession()
+  .then(() => globalThis.unifyAppleMusicBrowse?.fetchConfig?.())
   .then(() => Promise.all([fetchProviders(), fetchQueueState()]))
   .then(() => {
   if (providers.some((p) => p.provider === "spotify" && p.connected)) {

@@ -51,6 +51,7 @@ const {
   SOUNDCLOUD_LIKES_ID
 } = require("./lib/soundcloudWebApi");
 const { resolveProviderHealth } = require("./lib/providerHealth");
+const { isAppleMusicConfigured, appleMusicSetupHint } = require("./lib/appleMusicConfig");
 const {
   requireBrowserSession,
   attachMetaSession,
@@ -69,7 +70,8 @@ app.use(requireBrowserSession);
 
 const sessions = {
   spotify: { connected: false, expiresAt: null, refreshFailures: 0 },
-  soundcloud: { connected: false, expiresAt: null, refreshFailures: 0 }
+  soundcloud: { connected: false, expiresAt: null, refreshFailures: 0 },
+  applemusic: { connected: false, expiresAt: null, refreshFailures: 0 }
 };
 
 let queueState = {
@@ -136,10 +138,101 @@ function mockCatalogSearch(providerKey, query) {
   return { provider: providerKey, results };
 }
 
+function appleMusicNotConfiguredBody() {
+  return {
+    error: `Apple Music is not configured on this server. ${appleMusicSetupHint()}`,
+    code: "APPLE_MUSIC_NOT_CONFIGURED",
+    hint: appleMusicSetupHint()
+  };
+}
+
+function mockAppleMusicAlbumSummaries(query) {
+  const sample = providers.applemusic.tracks[0];
+  const album = {
+    id: APPLE_DEMO_ALBUM_ID,
+    name: "Demo album (Connect shows your real Apple Music library after setup)",
+    artist: sample?.artist || "Demo artist",
+    imageUrl: sample?.imageUrl,
+    releaseYear: "",
+    trackCount: providers.applemusic.tracks.length,
+    provider: "applemusic",
+    kind: "album"
+  };
+  if (!query) return [album];
+  const q = query.toLowerCase();
+  const haystack = `${album.name} ${album.artist}`.toLowerCase();
+  return haystack.includes(q) ? [album] : [];
+}
+
+function mockAppleMusicPlaylistSummaries() {
+  return [
+    {
+      id: APPLE_DEMO_PLAYLIST_ID,
+      name: "Demo playlist (your library appears after Apple Music is configured)",
+      ownerDisplayName: "Unify",
+      trackCount: providers.applemusic.tracks.length,
+      imageUrl: providers.applemusic.tracks[0]?.imageUrl,
+      provider: "applemusic"
+    }
+  ];
+}
+
+function mockAppleMusicLikedSongsSummary() {
+  return {
+    id: APPLE_LIKED_SONGS_ID,
+    name: "Liked Songs",
+    ownerDisplayName: "You",
+    trackCount: providers.applemusic.tracks.length,
+    imageUrl: providers.applemusic.tracks[0]?.imageUrl,
+    provider: "applemusic",
+    kind: "liked_songs"
+  };
+}
+
+function mockAppleMusicPlaylistTracks(playlistId) {
+  const trackCount = providers.applemusic.tracks.length;
+  const baseMs = Date.now();
+  const tracks = providers.applemusic.tracks.map((t, index) => ({
+    id: t.id,
+    title: t.title,
+    artist: t.artist,
+    durationSec: t.durationSec,
+    imageUrl: t.imageUrl,
+    provider: "applemusic",
+    addedAt: new Date(baseMs - (trackCount - 1 - index) * 86400000).toISOString()
+  }));
+  if (
+    playlistId === APPLE_LIKED_SONGS_ID ||
+    playlistId === APPLE_DEMO_PLAYLIST_ID ||
+    playlistId === APPLE_DEMO_ALBUM_ID
+  ) {
+    return tracks;
+  }
+  return null;
+}
+
+function mockAppleMusicLibrary() {
+  return {
+    likedSongs: mockAppleMusicLikedSongsSummary(),
+    owned: {
+      items: mockAppleMusicPlaylistSummaries(),
+      nextOffset: null
+    }
+  };
+}
+
+function appleMusicAllowsDemoCatalog() {
+  return isAppleMusicConfigured() && sessions.applemusic?.authMode === "simulated";
+}
+
 /** Stable id for simulated Spotify (no OAuth token): browse mock catalog as a fake playlist. */
 const SPOTIFY_DEMO_PLAYLIST_ID = "demo-playlist";
 /** Stable id for simulated Spotify album search (no OAuth token). */
 const SPOTIFY_DEMO_ALBUM_ID = "demo-album";
+/** Stable ids for Apple Music demo browse (credentials + simulated connect). */
+const APPLE_DEMO_PLAYLIST_ID = "demo-playlist";
+const APPLE_DEMO_ALBUM_ID = "demo-album";
+const APPLE_LIKED_SONGS_ID = "__liked_songs__";
 
 function mockSpotifyLikedSongsSummary() {
   return buildSpotifyLikedSongsSummaryWithoutCount();
@@ -482,7 +575,10 @@ app.get("/api/meta", (req, res) => {
       spotifyPlaylists: true,
       spotifyPlaylistTracks: true,
       soundcloudPlaylists: true,
-      soundcloudPlaylistTracks: true
+      soundcloudPlaylistTracks: true,
+      appleMusicPlaylists: true,
+      appleMusicPlaylistTracks: true,
+      appleMusicConfigured: isAppleMusicConfigured()
     }
   });
 });
@@ -522,6 +618,7 @@ app.post("/api/auth/:provider/disconnect", (req, res) => {
   sessions[provider].expiresAt = null;
   delete sessions[provider].accessToken;
   delete sessions[provider].refreshToken;
+  delete sessions[provider].musicUserToken;
   delete sessions[provider].userId;
   delete sessions[provider].displayName;
   delete sessions[provider].authMode;
@@ -1318,11 +1415,114 @@ app.get("/api/provider/:provider/search", async (req, res) => {
     return res.json({ provider, results: liveResult.results });
   }
 
+  if (provider === "applemusic") {
+    if (!isAppleMusicConfigured()) {
+      return res.status(503).json(appleMusicNotConfiguredBody());
+    }
+    const connectCheck = ensureConnected("applemusic");
+    if (!connectCheck.ok) {
+      return res.status(401).json({ error: connectCheck.message, code: connectCheck.code });
+    }
+    const searchType =
+      (req.query.type || "track").toString().toLowerCase() === "album" ? "album" : "track";
+    if (appleMusicAllowsDemoCatalog()) {
+      if (searchType === "album") {
+        return res.json({
+          provider,
+          kind: "album",
+          results: mockAppleMusicAlbumSummaries(query),
+          demoMode: true
+        });
+      }
+      return res.json({ ...mockCatalogSearch("applemusic", query), demoMode: true });
+    }
+    return res.status(503).json({
+      error: "Live Apple Music search is not enabled yet. Server credentials are present.",
+      code: "APPLE_MUSIC_API_PENDING"
+    });
+  }
+
   if (randomFail(0.08)) {
     return res.status(429).json({ error: `${provider} rate limit`, code: "PROVIDER_RATE_LIMIT" });
   }
 
   return res.json(mockCatalogSearch(provider, query));
+});
+
+app.get("/api/applemusic/config", (_req, res) => {
+  return res.json({
+    configured: isAppleMusicConfigured(),
+    hint: isAppleMusicConfigured() ? null : appleMusicSetupHint()
+  });
+});
+
+app.get("/api/applemusic/playlists", async (req, res) => {
+  if (!isAppleMusicConfigured()) {
+    return res.status(503).json(appleMusicNotConfiguredBody());
+  }
+  const connectCheck = ensureConnected("applemusic");
+  if (!connectCheck.ok) {
+    return res.status(401).json({ error: connectCheck.message, code: connectCheck.code });
+  }
+  if (appleMusicAllowsDemoCatalog()) {
+    return res.json({ ...mockAppleMusicLibrary(), demoMode: true });
+  }
+  return res.status(503).json({
+    error: "Live Apple Music library is not enabled yet. Server credentials are present.",
+    code: "APPLE_MUSIC_API_PENDING"
+  });
+});
+
+app.get("/api/applemusic/playlists/:playlistId/tracks", async (req, res) => {
+  const { playlistId } = req.params;
+  if (!isAppleMusicConfigured()) {
+    return res.status(503).json(appleMusicNotConfiguredBody());
+  }
+  const connectCheck = ensureConnected("applemusic");
+  if (!connectCheck.ok) {
+    return res.status(401).json({ error: connectCheck.message, code: connectCheck.code });
+  }
+  const limit = Math.min(Number(req.query.limit || 50) || 50, 100);
+  const offset = Math.max(Number(req.query.offset || 0) || 0, 0);
+  if (appleMusicAllowsDemoCatalog()) {
+    const all = mockAppleMusicPlaylistTracks(playlistId);
+    if (!all) {
+      return res.status(404).json({ error: "playlist not found", code: "APPLE_MUSIC_PLAYLIST_NOT_FOUND" });
+    }
+    const items = all.slice(offset, offset + limit);
+    const nextOffset = offset + items.length < all.length ? offset + items.length : null;
+    return res.json({ items, nextOffset, demoMode: true });
+  }
+  return res.status(503).json({
+    error: "Live Apple Music playlist tracks are not enabled yet.",
+    code: "APPLE_MUSIC_API_PENDING"
+  });
+});
+
+app.get("/api/applemusic/albums/:albumId/tracks", async (req, res) => {
+  const { albumId } = req.params;
+  if (!isAppleMusicConfigured()) {
+    return res.status(503).json(appleMusicNotConfiguredBody());
+  }
+  const connectCheck = ensureConnected("applemusic");
+  if (!connectCheck.ok) {
+    return res.status(401).json({ error: connectCheck.message, code: connectCheck.code });
+  }
+  const limit = Math.min(Number(req.query.limit || 50) || 50, 100);
+  const offset = Math.max(Number(req.query.offset || 0) || 0, 0);
+  if (appleMusicAllowsDemoCatalog()) {
+    const all = mockAppleMusicPlaylistTracks(albumId);
+    if (!all) {
+      return res.status(404).json({ error: "album not found", code: "APPLE_MUSIC_ALBUM_NOT_FOUND" });
+    }
+    const items = all.slice(offset, offset + limit);
+    const nextOffset = offset + items.length < all.length ? offset + items.length : null;
+    return res.json({ items, nextOffset, demoMode: true });
+  }
+  return res.status(503).json({
+    error: "Live Apple Music album tracks are not enabled yet.",
+    code: "APPLE_MUSIC_API_PENDING"
+  });
 });
 
 app.get("/api/queue", (_req, res) => {

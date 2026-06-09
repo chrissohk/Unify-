@@ -111,6 +111,26 @@
               />
               SoundCloud search
             </button>
+            <button
+              type="button"
+              class="tab-btn tab-btn--brand tab-btn--brand-applemusic"
+              role="tab"
+              id="tab-applemusic-search"
+              aria-selected="false"
+              aria-controls="panel-applemusic-search"
+              tabindex="-1"
+              data-testid="tab-applemusic-search"
+            >
+              <img
+                src="/apple-music-queue-badge.png"
+                alt=""
+                class="tab-brand-icon"
+                width="18"
+                height="18"
+                decoding="async"
+              />
+              Apple Music search
+            </button>
           </div>
         </nav>
         <div
@@ -1131,6 +1151,380 @@
             </div>
           </div>
             </div>
+
+            <div
+              class="tab-panel"
+              id="panel-applemusic-search"
+              role="tabpanel"
+              aria-labelledby="tab-applemusic-search"
+              hidden
+              data-testid="panel-applemusic-search"
+            >
+              <div class="search-panel-header search-panel-header--applemusic">
+                <h2 class="search-heading search-heading--applemusic">
+                  <img
+                    src="/apple-music-queue-badge.png"
+                    alt=""
+                    class="search-heading-icon"
+                    width="22"
+                    height="22"
+                    decoding="async"
+                    aria-hidden="true"
+                  />
+                  Search Apple Music
+                </h2>
+                <div
+                  id="appleMusicProviderControls"
+                  class="search-panel-provider"
+                  role="group"
+                  aria-label="Apple Music account"
+                ></div>
+              </div>
+              <div
+                id="appleMusicSearchBrowse"
+                class="spotify-search-browse"
+                data-testid="applemusic-search-browse"
+              >
+                <div
+                  class="search-mode-toggle"
+                  role="tablist"
+                  aria-label="Apple Music search type"
+                  data-testid="applemusic-search-mode-toggle"
+                >
+                  <button
+                    type="button"
+                    id="appleMusicSearchModeTracks"
+                    class="search-mode-btn is-selected"
+                    role="tab"
+                    aria-selected="true"
+                    aria-controls="appleMusicSearchResults"
+                    data-search-mode="track"
+                    data-testid="applemusic-search-mode-tracks"
+                  >
+                    Tracks
+                  </button>
+                  <button
+                    type="button"
+                    id="appleMusicSearchModeAlbums"
+                    class="search-mode-btn"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="appleMusicSearchResults"
+                    data-search-mode="album"
+                    data-testid="applemusic-search-mode-albums"
+                  >
+                    Albums
+                  </button>
+                </div>
+                <form id="appleMusicSearchForm" class="search-form">
+                  <div class="search-field">
+                    <svg
+                      class="search-field__icon"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
+                      <path
+                        d="M15.5 15.5L20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                    <label class="visually-hidden" for="appleMusicSearchQuery">Search Apple Music</label>
+                    <input
+                      id="appleMusicSearchQuery"
+                      type="search"
+                      autocomplete="off"
+                      aria-label="Search Apple Music"
+                    />
+                  </div>
+                  <button type="submit" data-testid="applemusic-search-submit">Search</button>
+                </form>
+                <ul id="appleMusicSearchResults" class="track-list"></ul>
+              </div>
+
+              <div
+                class="playlist-tracks-pane spotify-album-tracks-pane spotify-album-detail"
+                id="appleMusicAlbumTracksPanel"
+                hidden
+                data-testid="applemusic-album-tracks-panel"
+              >
+                <button
+                  type="button"
+                  id="appleMusicAlbumBack"
+                  class="spotify-album-detail__back"
+                  data-testid="applemusic-album-back"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path
+                      d="M15 18l-6-6 6-6"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  Back to albums
+                </button>
+                <div id="appleMusicAlbumHero" class="spotify-album-hero" data-testid="applemusic-album-hero">
+                  <div class="spotify-album-hero__cover-wrap">
+                    <div
+                      id="appleMusicAlbumHeroCoverFallback"
+                      class="spotify-album-hero__cover spotify-album-hero__cover--fallback spotify-album-hero__cover--applemusic"
+                      aria-hidden="true"
+                      data-testid="applemusic-album-hero-cover-fallback"
+                    ></div>
+                  </div>
+                  <div class="spotify-album-hero__meta">
+                    <h3 id="appleMusicAlbumHeroTitle" class="spotify-album-hero__title" data-testid="applemusic-album-hero-title"></h3>
+                    <p id="appleMusicAlbumHeroMeta" class="spotify-album-hero__subtitle" data-testid="applemusic-album-hero-meta"></p>
+                    <button
+                      type="button"
+                      id="appleMusicAlbumQueueAll"
+                      class="spotify-album-hero__queue-btn spotify-album-hero__queue-btn--applemusic"
+                      hidden
+                      data-testid="applemusic-album-queue-all"
+                    >
+                      Queue album
+                    </button>
+                  </div>
+                </div>
+                <div
+                  id="appleMusicAlbumTracksLoading"
+                  class="playlist-loading playlist-tracks-loading"
+                  hidden
+                  aria-hidden="true"
+                  data-testid="applemusic-album-tracks-loading"
+                >
+                  <div class="dot-spinner" role="status">
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span class="visually-hidden">Loading album tracks</span>
+                  </div>
+                </div>
+                <p
+                  id="appleMusicAlbumTracksStatus"
+                  class="hint-text"
+                  data-testid="applemusic-album-tracks-status"
+                  aria-live="polite"
+                ></p>
+                <ul id="appleMusicAlbumTracks" class="playlist-track-list track-list"></ul>
+                <button
+                  type="button"
+                  id="appleMusicAlbumTracksMore"
+                  class="load-more-btn"
+                  hidden
+                  data-testid="applemusic-album-tracks-more"
+                >
+                  More tracks
+                </button>
+              </div>
+
+              <div class="applemusic-library-split library-split" aria-label="Apple Music library">
+                <div class="playlist-pane">
+                  <h3 class="playlist-pane-title">Your library</h3>
+                  <div class="search-field library-search">
+                    <svg
+                      class="search-field__icon"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
+                      <path
+                        d="M15.5 15.5L20 20"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                    <label class="visually-hidden" for="appleMusicLibraryFilter">Search Apple Music playlists</label>
+                    <input
+                      id="appleMusicLibraryFilter"
+                      type="search"
+                      autocomplete="off"
+                      placeholder="Search playlists"
+                      aria-label="Search Apple Music playlists"
+                      data-testid="applemusic-library-filter"
+                    />
+                  </div>
+                  <div class="applemusic-library-scroll">
+                    <div
+                      id="appleMusicPlaylistLoading"
+                      class="playlist-loading"
+                      hidden
+                      aria-hidden="true"
+                      data-testid="applemusic-playlist-loading"
+                    >
+                      <div class="dot-spinner" role="status">
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                        <span class="visually-hidden">Loading library</span>
+                      </div>
+                    </div>
+                    <p
+                      id="appleMusicPlaylistStatus"
+                      class="hint-text playlist-status"
+                      hidden
+                      aria-live="polite"
+                      data-testid="applemusic-playlist-status"
+                    ></p>
+                    <p
+                      id="appleMusicLibraryFilterEmpty"
+                      class="hint-text library-filter-empty"
+                      hidden
+                      aria-live="polite"
+                      data-testid="applemusic-library-filter-empty"
+                    >
+                      No playlists match your search.
+                    </p>
+                    <div class="applemusic-library-groups" id="appleMusicLibraryGroups">
+                      <section class="library-group" data-library-group="applemusic-liked-songs">
+                        <button
+                          type="button"
+                          class="library-group-toggle"
+                          aria-expanded="true"
+                          data-testid="library-group-toggle-applemusic-liked-songs"
+                        >
+                          <span class="library-group-toggle__label">Liked Songs</span>
+                          <span class="library-group-toggle__meta"></span>
+                          <span class="library-group-toggle__chevron" aria-hidden="true"></span>
+                        </button>
+                        <div class="library-group-body">
+                          <ul id="appleMusicLikedSongsList" class="playlist-list" data-testid="applemusic-liked-songs-list"></ul>
+                        </div>
+                      </section>
+                      <section class="library-group" data-library-group="applemusic-owned">
+                        <button
+                          type="button"
+                          class="library-group-toggle"
+                          aria-expanded="true"
+                          data-testid="library-group-toggle-applemusic-owned"
+                        >
+                          <span class="library-group-toggle__label">Your playlists</span>
+                          <span class="library-group-toggle__meta"></span>
+                          <span class="library-group-toggle__chevron" aria-hidden="true"></span>
+                        </button>
+                        <div class="library-group-body">
+                          <ul id="appleMusicOwnedPlaylistList" class="playlist-list" data-testid="applemusic-owned-playlist-list"></ul>
+                          <button type="button" id="appleMusicPlaylistsMore" class="load-more-btn" hidden data-testid="applemusic-playlists-more">
+                            More playlists
+                          </button>
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                </div>
+                <div class="playlist-tracks-pane" id="appleMusicPlaylistTracksPanel" hidden data-testid="applemusic-playlist-tracks-panel">
+                  <div class="playlist-tracks-header">
+                    <h3 id="appleMusicSelectedPlaylistTitle" class="playlist-pane-title">Tracks</h3>
+                    <div class="playlist-tracks-controls">
+                      <div
+                        id="appleMusicPlaylistTrackSort"
+                        class="search-mode-toggle playlist-tracks-sort"
+                        role="tablist"
+                        aria-label="Sort playlist tracks"
+                        data-testid="applemusic-playlist-track-sort"
+                      >
+                        <button
+                          type="button"
+                          class="search-mode-btn is-selected"
+                          role="tab"
+                          aria-selected="true"
+                          data-track-sort="newest"
+                          data-testid="applemusic-playlist-track-sort-newest"
+                        >
+                          Newest
+                        </button>
+                        <button
+                          type="button"
+                          class="search-mode-btn"
+                          role="tab"
+                          aria-selected="false"
+                          data-track-sort="oldest"
+                          data-testid="applemusic-playlist-track-sort-oldest"
+                        >
+                          Oldest
+                        </button>
+                      </div>
+                      <div class="search-field playlist-tracks-search">
+                        <svg
+                          class="search-field__icon"
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          aria-hidden="true"
+                          focusable="false"
+                        >
+                          <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
+                          <path
+                            d="M15.5 15.5L20 20"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                          />
+                        </svg>
+                        <label class="visually-hidden" for="appleMusicPlaylistTrackFilter">Search in playlist</label>
+                        <input
+                          id="appleMusicPlaylistTrackFilter"
+                          type="search"
+                          autocomplete="off"
+                          placeholder="Search"
+                          aria-label="Search playlist tracks"
+                          data-testid="applemusic-playlist-track-filter"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    id="appleMusicPlaylistTracksLoading"
+                    class="playlist-loading playlist-tracks-loading"
+                    hidden
+                    aria-hidden="true"
+                    data-testid="applemusic-playlist-tracks-loading"
+                  >
+                    <div class="dot-spinner" role="status">
+                      <span aria-hidden="true"></span>
+                      <span aria-hidden="true"></span>
+                      <span aria-hidden="true"></span>
+                      <span aria-hidden="true"></span>
+                      <span aria-hidden="true"></span>
+                      <span aria-hidden="true"></span>
+                      <span aria-hidden="true"></span>
+                      <span aria-hidden="true"></span>
+                      <span class="visually-hidden">Loading tracks</span>
+                    </div>
+                  </div>
+                  <p id="appleMusicPlaylistTracksStatus" class="hint-text" data-testid="applemusic-playlist-tracks-status" aria-live="polite"></p>
+                  <ul id="appleMusicPlaylistTracks" class="playlist-track-list track-list"></ul>
+                  <button type="button" id="appleMusicTracksMore" class="load-more-btn" hidden data-testid="applemusic-tracks-more">
+                    More tracks
+                  </button>
+                </div>
+              </div>
+            </div>
           </section>
         </div>
 
@@ -1241,6 +1635,7 @@
     <script src="/queueAutoPlay.js"></script>
     <script src="/filterPlaylistTracks.js"></script>
     <script src="/sortPlaylistTracks.js"></script>
+    <script src="/appleMusicBrowse.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

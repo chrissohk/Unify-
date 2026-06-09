@@ -10,6 +10,8 @@
   --color-text-muted: #a1a1aa;
   --color-spotify: #1ed760;
   --color-soundcloud: #ff5500;
+  --color-applemusic: #fc3c44;
+  --color-applemusic-deep: #ff2d55;
   /* Convergence (Direction C): green + orange meet at a soft sage midpoint */
   --color-unified-mid: #7a9488;
   --color-unified: var(--color-unified-mid);
@@ -51,6 +53,12 @@
     135deg,
     rgba(255, 85, 0, 0.2) 0%,
     rgba(255, 85, 0, 0.07) 38%,
+    transparent 58%
+  );
+  --gradient-applemusic-glow: linear-gradient(
+    135deg,
+    rgba(252, 60, 68, 0.22) 0%,
+    rgba(255, 45, 85, 0.08) 38%,
     transparent 58%
   );
   --gradient-unified-metallic: conic-gradient(
@@ -104,6 +112,19 @@
     #ff7733 232deg,
     #993300 288deg,
     #4a1800 360deg
+  );
+  --gradient-applemusic-metallic: conic-gradient(
+    from 210deg at 50% 50%,
+    #4a0a14 0deg,
+    #ff8a96 34deg,
+    #fc3c44 62deg,
+    #8c1a2a 98deg,
+    #d9a0a8 128deg,
+    #fff0f2 156deg,
+    #c08088 192deg,
+    #ff5e62 232deg,
+    #992033 288deg,
+    #4a0a14 360deg
   );
   --gradient-brand-bracket: conic-gradient(
     from 0deg at 50% 50%,
@@ -1361,6 +1382,58 @@ body.now-playing-theater-open .now-playing-layout__artist {
   outline-color: var(--color-soundcloud);
 }
 
+.tab-btn--brand-applemusic.is-selected {
+  color: var(--color-text);
+  background:
+    linear-gradient(180deg, rgba(252, 60, 68, 0.14) 0%, rgba(255, 45, 85, 0.08) 100%),
+    var(--glass-surface-strong);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 0 16px rgba(252, 60, 68, 0.22);
+}
+
+.tab-btn--brand-applemusic.is-selected::after {
+  content: "";
+  position: absolute;
+  inset: calc(var(--tab-brand-bracket-width) * -1);
+  border-radius: inherit;
+  padding: var(--tab-brand-bracket-width);
+  background: var(--gradient-brand-bracket);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tab-btn--brand-applemusic.is-selected::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: var(--tab-metallic-ring-width);
+  background: var(--gradient-applemusic-metallic);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.tab-btn--brand-applemusic:focus-visible {
+  outline-color: var(--color-applemusic);
+}
+
 .tab-panel[hidden] {
   display: none;
 }
@@ -1413,7 +1486,12 @@ body.now-playing-theater-open .now-playing-layout__artist {
   background: rgba(34, 26, 22, 0.88);
 }
 
-.tabbed-card .now-playing-row:not(.now-playing-row--spotify):not(.now-playing-row--soundcloud) {
+.tabbed-card #queueList > li.queue-row--active.queue-row--applemusic,
+.queue-rail #queueList > li.queue-row--active.queue-row--applemusic {
+  background: rgba(34, 18, 22, 0.88);
+}
+
+.tabbed-card .now-playing-row:not(.now-playing-row--spotify):not(.now-playing-row--soundcloud):not(.now-playing-row--applemusic) {
   background: transparent;
   box-shadow: none;
   backdrop-filter: none;
@@ -1421,7 +1499,7 @@ body.now-playing-theater-open .now-playing-layout__artist {
   margin-top: 0;
 }
 
-#panel-now-playing:not(:has(.now-playing-row--spotify)):not(:has(.now-playing-row--soundcloud)) {
+#panel-now-playing:not(:has(.now-playing-row--spotify)):not(:has(.now-playing-row--soundcloud)):not(:has(.now-playing-row--applemusic)) {
   background: transparent;
   border: 0;
   box-shadow: none;
@@ -1461,6 +1539,22 @@ body.now-playing-theater-open .now-playing-layout__artist {
     0 0 20px rgba(255, 85, 0, 0.22);
 }
 
+.tabbed-card .now-playing-row--applemusic {
+  background:
+    var(--gradient-applemusic-glow),
+    var(
+      --now-playing-cover-bg,
+      linear-gradient(175deg, rgba(36, 18, 24, 0.92) 0%, rgba(11, 11, 12, 0.92) 100%)
+    );
+  transition: background var(--duration-medium) ease-out;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 4px 20px rgba(0, 0, 0, 0.25),
+    0 0 20px rgba(252, 60, 68, 0.22);
+}
+
 .tabbed-card ul.track-list,
 .tabbed-card .playlist-list,
 .tabbed-card .playlist-track-list {
@@ -1480,7 +1574,8 @@ body.now-playing-theater-open .now-playing-layout__artist {
 
 /* Search tabs — lighter glass so video reads through library + results */
 #panel-spotify-search .search-field input,
-#panel-soundcloud-search .search-field input {
+#panel-soundcloud-search .search-field input,
+#panel-applemusic-search .search-field input {
   background: var(--glass-surface-medium);
   border-color: var(--glass-border);
   backdrop-filter: blur(10px);
@@ -1489,10 +1584,13 @@ body.now-playing-theater-open .now-playing-layout__artist {
 
 #panel-spotify-search ul.track-list,
 #panel-soundcloud-search ul.track-list,
+#panel-applemusic-search ul.track-list,
 #panel-spotify-search .playlist-list,
 #panel-soundcloud-search .playlist-list,
+#panel-applemusic-search .playlist-list,
 #panel-spotify-search .playlist-track-list,
-#panel-soundcloud-search .playlist-track-list {
+#panel-soundcloud-search .playlist-track-list,
+#panel-applemusic-search .playlist-track-list {
   background: rgba(11, 11, 12, 0.22);
   backdrop-filter: blur(14px) saturate(120%);
   -webkit-backdrop-filter: blur(14px) saturate(120%);
@@ -1521,14 +1619,17 @@ body.now-playing-theater-open .now-playing-layout__artist {
 }
 
 .spotify-library-split,
-.soundcloud-library-split {
+.soundcloud-library-split,
+.applemusic-library-split {
   border-top-color: rgba(255, 255, 255, 0.08);
 }
 
 #panel-spotify-search .playlist-pane,
 #panel-spotify-search .playlist-tracks-pane:not([hidden]),
 #panel-soundcloud-search .playlist-pane,
-#panel-soundcloud-search .playlist-tracks-pane:not([hidden]) {
+#panel-soundcloud-search .playlist-tracks-pane:not([hidden]),
+#panel-applemusic-search .playlist-pane,
+#panel-applemusic-search .playlist-tracks-pane:not([hidden]) {
   padding: 12px;
   border-radius: var(--radius-sm);
   background: rgba(20, 20, 22, 0.25);
@@ -1538,11 +1639,29 @@ body.now-playing-theater-open .now-playing-layout__artist {
 }
 
 #panel-spotify-search .hint-text,
-#panel-soundcloud-search .hint-text {
+#panel-soundcloud-search .hint-text,
+#panel-applemusic-search .hint-text {
   padding: 8px 10px;
   border-radius: var(--radius-sm);
   background: rgba(20, 20, 22, 0.35);
   border: 1px solid var(--glass-border);
+}
+
+.applemusic-playback-hint {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(252, 60, 68, 0.12);
+  border: 1px solid rgba(252, 60, 68, 0.28);
+}
+
+.applemusic-sdk-panel .applemusic-transport-btn--primary {
+  background: var(--gradient-applemusic-glow);
+  border-color: rgba(255, 45, 85, 0.45);
+  color: #fff;
 }
 
 #panel-spotify-search .track-list-art-fallback {
@@ -1713,6 +1832,43 @@ body.now-playing-theater-open .now-playing-layout__artist {
   background-size: 200% 100%;
   background-repeat: no-repeat;
   animation: lineStreakSlide 2.5s linear infinite;
+}
+
+.search-heading--applemusic {
+  box-shadow: 0 12px 32px -18px rgba(252, 60, 68, 0.45);
+}
+
+.search-heading--applemusic::after {
+  background: linear-gradient(
+    90deg,
+    rgba(252, 60, 68, 0.14) 0%,
+    rgba(255, 94, 98, 0.28) 36%,
+    rgba(255, 220, 224, 0.92) 50%,
+    rgba(255, 94, 98, 0.28) 64%,
+    rgba(252, 60, 68, 0.14) 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: lineStreakSlide 2.5s linear infinite;
+}
+
+.search-panel-header--applemusic::after {
+  background: linear-gradient(
+    90deg,
+    rgba(252, 60, 68, 0.1) 0%,
+    rgba(255, 45, 85, 0.22) 50%,
+    rgba(252, 60, 68, 0.1) 100%
+  );
+}
+
+.spotify-album-hero__cover--applemusic,
+.spotify-album-hero__cover--applemusic.spotify-album-hero__cover--fallback {
+  background: linear-gradient(145deg, rgba(252, 60, 68, 0.35), rgba(255, 45, 85, 0.18));
+}
+
+.spotify-album-hero__queue-btn--applemusic {
+  background: linear-gradient(90deg, #ff5e62 0%, #fc3c44 48%, #ff2d55 100%);
+  border-color: rgba(252, 60, 68, 0.45);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2406,28 +2562,32 @@ li .actions {
 
 .queue-rail #queueList > li.queue-row {
   display: grid;
-  grid-template-columns: auto 40px minmax(0, 1fr) auto;
+  grid-template-columns: 1.25rem auto 40px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
 }
 
-.queue-rail #queueList > li.queue-row .queue-drag-handle {
-  margin-right: 0;
+.queue-rail #queueList > li.queue-row .queue-row-index {
   grid-column: 1;
 }
 
-.queue-rail #queueList > li.queue-row .queue-row-art {
+.queue-rail #queueList > li.queue-row .queue-drag-handle {
+  margin-right: 0;
   grid-column: 2;
 }
 
-.queue-rail #queueList > li.queue-row .queue-row-meta {
+.queue-rail #queueList > li.queue-row .queue-row-art {
   grid-column: 3;
+}
+
+.queue-rail #queueList > li.queue-row .queue-row-meta {
+  grid-column: 4;
   min-width: 0;
 }
 
 .queue-rail #queueList > li.queue-row .queue-row-actions {
-  grid-column: 4;
+  grid-column: 5;
   flex-direction: column;
   align-items: stretch;
   gap: 4px;
@@ -2452,10 +2612,13 @@ li .actions {
 
 .queue-row-index {
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 0.6875rem;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--color-text-muted);
-  margin-right: 2px;
+  opacity: 0.65;
+  text-align: right;
+  align-self: center;
 }
 
 .queue-row-artist {
@@ -2483,6 +2646,10 @@ li .actions {
   border-left-color: var(--color-soundcloud);
 }
 
+#queueList > li.queue-row--applemusic {
+  border-left-color: var(--color-applemusic);
+}
+
 #queueList > li.queue-row--neutral {
   border-left-color: var(--color-border);
 }
@@ -2499,6 +2666,12 @@ li .actions {
   border-left-color: var(--color-soundcloud);
 }
 
+#queueList > li.queue-row--active.queue-row--applemusic {
+  background: #221018;
+  border-color: var(--color-border);
+  border-left-color: var(--color-applemusic);
+}
+
 #queueList > li.queue-row--active .queue-row-title {
   font-weight: 600;
 }
@@ -2509,6 +2682,10 @@ li .actions {
 
 #queueList > li.queue-row--active.queue-row--soundcloud .queue-row-title {
   color: #ff944d;
+}
+
+#queueList > li.queue-row--active.queue-row--applemusic .queue-row-title {
+  color: #ff8a96;
 }
 
 .now-playing-row {
@@ -3017,7 +3194,8 @@ body.now-playing-theater-open .spotify-reconnect-hint {
 }
 
 img.provider-badge-spotify,
-img.provider-badge-soundcloud {
+img.provider-badge-soundcloud,
+img.provider-badge-applemusic {
   width: 1em;
   height: 1em;
   aspect-ratio: 1;
@@ -3027,7 +3205,8 @@ img.provider-badge-soundcloud {
 }
 
 .provider-status img.provider-badge-spotify,
-.provider-status img.provider-badge-soundcloud {
+.provider-status img.provider-badge-soundcloud,
+.provider-status img.provider-badge-applemusic {
   width: 1.25em;
   height: 1.25em;
 }

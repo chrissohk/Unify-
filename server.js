@@ -956,6 +956,8 @@ app.get("/api/spotify/playlists/:playlistId/tracks", async (req, res) => {
 
   const limit = Math.min(Number(req.query.limit || 50) || 50, 50);
   const offset = Math.max(Number(req.query.offset || 0) || 0, 0);
+  const edgeRaw = (req.query.edge || "").toString().trim().toLowerCase();
+  const edge = edgeRaw === "newest" ? "newest" : undefined;
 
   const tokenResult = await getSpotifyAccessToken({ sessions, persist });
   if (!tokenResult.ok) {
@@ -965,6 +967,9 @@ app.get("/api/spotify/playlists/:playlistId/tracks", async (req, res) => {
         return res.json({
           results: mockTracks,
           nextOffset: null,
+          tracksOlderOffset: null,
+          pageOffset: 0,
+          total: mockTracks.length,
           demoMode: true
         });
       }
@@ -985,7 +990,8 @@ app.get("/api/spotify/playlists/:playlistId/tracks", async (req, res) => {
     persist,
     playlistId,
     limit,
-    offset
+    offset,
+    edge
   });
 
   if (!liveResult.ok && liveResult.status === 401) {
@@ -1001,7 +1007,8 @@ app.get("/api/spotify/playlists/:playlistId/tracks", async (req, res) => {
       persist,
       playlistId,
       limit,
-      offset
+      offset,
+      edge
     });
   }
 
@@ -1010,9 +1017,19 @@ app.get("/api/spotify/playlists/:playlistId/tracks", async (req, res) => {
   }
 
   const results = liveResult.results || [];
+  const total =
+    typeof liveResult.total === "number"
+      ? liveResult.total
+      : typeof liveResult.collectionTotal === "number"
+        ? liveResult.collectionTotal
+        : null;
   return res.json({
     results,
-    nextOffset: liveResult.nextOffset,
+    nextOffset: liveResult.nextOffset ?? null,
+    tracksOlderOffset: liveResult.tracksOlderOffset ?? null,
+    pageOffset: typeof liveResult.pageOffset === "number" ? liveResult.pageOffset : offset,
+    total,
+    collectionTotal: total,
     demoMode: false
   });
 });

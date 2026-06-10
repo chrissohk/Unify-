@@ -2,7 +2,7 @@
  * Apple Music browse tab — library, search, albums. Playback wiring comes later.
  */
 (function initAppleMusicBrowseModule() {
-  const APPLE_BADGE = "/apple-music-queue-badge.svg";
+  const APPLE_BADGE = "/apple-music-queue-badge.png";
 
   let deps = null;
   let appleMusicServerConfig = { configured: false };

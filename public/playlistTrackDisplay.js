@@ -17,6 +17,11 @@ function isSpotifyLikedSongsSelection(browser) {
   return browser?.selectedPlaylistKind === "liked_songs";
 }
 
+function isPlaylistOrderOnlyPlaylist(browser) {
+  const title = String(browser?.selectedTitle || "").trim();
+  return /^electronics?$/i.test(title);
+}
+
 function computeTailPageOffset(total, limit = 50) {
   const safeTotal = Math.max(Number(total) || 0, 0);
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 50);
@@ -75,17 +80,23 @@ function playlistSortNeedsBulkFetch(browser, nextMode) {
 
 function getDisplayedPlaylistTracks(browser) {
   const filterFn = window.FilterPlaylistTracks?.filterPlaylistTracks;
-  const sortFn = window.SortPlaylistTracks?.sortPlaylistTracks;
+  const sortApi = window.SortPlaylistTracks;
   const tracks = Array.isArray(browser?.tracks) ? browser.tracks : [];
   const filtered = filterFn ? filterFn(tracks, browser?.trackFilterQuery) : tracks;
   const mode = normalizePlaylistTrackSortMode(browser?.trackSortMode);
-  return sortFn ? sortFn(filtered, mode) : filtered;
+  if (isPlaylistOrderOnlyPlaylist(browser)) {
+    return sortApi?.sortPlaylistTracksByPlaylistOrder
+      ? sortApi.sortPlaylistTracksByPlaylistOrder(filtered, mode)
+      : filtered;
+  }
+  return sortApi?.sortPlaylistTracks ? sortApi.sortPlaylistTracks(filtered, mode) : filtered;
 }
 
 const api = {
   normalizePlaylistTrackSortMode,
   isSpotifyFollowedPlaylistSelection,
   isSpotifyLikedSongsSelection,
+  isPlaylistOrderOnlyPlaylist,
   computeTailPageOffset,
   computeTracksOlderOffset,
   resolveNewestFirstFetchParams,

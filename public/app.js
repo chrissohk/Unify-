@@ -5888,12 +5888,36 @@ const ensureSoundCloudPlaylistApiAvailable = async () => {
 };
 
 const fetchSoundCloudLibraryPage = async (ownedOffset, likedOffset) => {
-  const path = `/api/soundcloud/playlists?ownedLimit=30&ownedOffset=${ownedOffset}&likedLimit=30&likedOffset=${likedOffset}&fetchSongCounts=true`;
+  const path = `/api/soundcloud/playlists?ownedLimit=30&ownedOffset=${ownedOffset}&likedLimit=30&likedOffset=${likedOffset}`;
   const res = await apiFetch(path);
   if (!res.ok) {
     throw new Error(await formatSoundCloudPlaylistHttpError(res, "Could not load SoundCloud library"));
   }
   return res.json();
+};
+
+const fetchSoundCloudLikesCountInBackground = async () => {
+  try {
+    const res = await apiFetch(
+      "/api/soundcloud/playlists?ownedLimit=1&ownedOffset=0&likedLimit=0&likedOffset=0&fetchSongCounts=true"
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    const likes = data.likes;
+    if (!likes || typeof likes.trackCount !== "number") return;
+    soundcloudPlaylistBrowser.likes = {
+      ...(soundcloudPlaylistBrowser.likes || {
+        id: SOUNDCLOUD_LIKES_PLAYLIST_ID,
+        name: "Likes",
+        kind: "likes",
+        provider: "soundcloud"
+      }),
+      trackCount: likes.trackCount
+    };
+    renderSoundCloudLibraryRows();
+  } catch {
+    // Background count is optional; opening Likes still uses edge=newest when count is unknown.
+  }
 };
 
 const fetchSoundCloudPlaylistTracksPage = async (playlistId, offset, secretToken, { edge } = {}) => {
@@ -6093,6 +6117,7 @@ const bootstrapSoundCloudPlaylistBrowser = async () => {
         : data.likedPlaylists.nextOffset;
     soundcloudPlaylistBrowser.demoMode = Boolean(data.demoMode);
     renderSoundCloudLibraryRows();
+    void fetchSoundCloudLikesCountInBackground();
     if (soundcloudOwnedPlaylistsMore) {
       soundcloudOwnedPlaylistsMore.hidden = soundcloudPlaylistBrowser.ownedNextOffset === null;
     }

@@ -45,7 +45,22 @@ function sortPlaylistTracks(tracks, mode) {
     .map(({ track }) => track);
 }
 
-const api = { sortPlaylistTracks, parseAddedAtEpoch, playlistPositionOrIndex };
+function sortPlaylistTracksByPlaylistOrder(tracks, mode) {
+  const list = Array.isArray(tracks) ? tracks : [];
+  if (mode !== "newest" && mode !== "oldest") return list;
+
+  return list
+    .map((track, index) => ({ track, index }))
+    .sort((a, b) => compareByPlaylistPosition(a, b, mode))
+    .map(({ track }) => track);
+}
+
+const api = {
+  sortPlaylistTracks,
+  sortPlaylistTracksByPlaylistOrder,
+  parseAddedAtEpoch,
+  playlistPositionOrIndex
+};
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = api;

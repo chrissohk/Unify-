@@ -135,36 +135,30 @@ test("soundCloudFetchLikesSummary uses total_count when API provides it", async 
   }
 });
 
-test("soundCloudFetchLikesSummary counts likes across pages", async () => {
+test("soundCloudFetchLikesSummary marks count pending when total_count is absent", async () => {
   const originalFetch = global.fetch;
-  let likesPage = 0;
-  const likePages = [
-    {
-      collection: [mockLikedTrack(1), mockLikedTrack(2)],
-      next_href: "https://api.soundcloud.com/me/likes/tracks?cursor=2"
-    },
-    {
-      collection: [mockLikedTrack(3), mockLikedTrack(4)],
-      next_href: "https://api.soundcloud.com/me/likes/tracks?cursor=3"
-    },
-    {
-      collection: [mockLikedTrack(5), mockLikedTrack(6)],
-      next_href: null
-    }
-  ];
+  let likesFetches = 0;
   global.fetch = async (url) => {
     const u = String(url);
     if (u.includes("/me/likes/tracks")) {
-      const body = likePages[likesPage] ?? likePages[likePages.length - 1];
-      likesPage += 1;
-      return { ok: true, status: 200, json: async () => body };
+      likesFetches += 1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          collection: [mockLikedTrack(1), mockLikedTrack(2)],
+          next_href: "https://api.soundcloud.com/me/likes/tracks?cursor=2"
+        })
+      };
     }
     throw new Error(`unexpected fetch: ${u}`);
   };
   try {
     const r = await soundCloudFetchLikesSummary({ accessToken: "tok" });
     assert.equal(r.ok, true);
-    assert.equal(r.likes.trackCount, 6);
+    assert.equal(likesFetches, 1);
+    assert.equal(r.likes.trackCountPending, true);
+    assert.equal(r.likes.trackCount, undefined);
   } finally {
     global.fetch = originalFetch;
   }
@@ -230,6 +224,7 @@ test("soundCloudListLibrary merges likes, owned, and liked playlists", async () 
               }
             }
           ],
+          total_count: 1,
           next_href: null
         })
       };

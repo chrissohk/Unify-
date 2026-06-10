@@ -6,6 +6,7 @@ const {
   playlistSortNeedsBulkFetch,
   getDisplayedPlaylistTracks,
   isSpotifyFollowedPlaylistSelection,
+  isPlaylistOrderOnlyPlaylist,
   computeTailPageOffset,
   computeTracksOlderOffset,
   resolveNewestFirstFetchParams,
@@ -146,5 +147,45 @@ test("getDisplayedPlaylistTracks sorts paginated first page by oldest", () => {
   assert.deepEqual(
     getDisplayedPlaylistTracks(browser).map((t) => t.id),
     ["old1", "old2", "newest"]
+  );
+});
+
+test("isPlaylistOrderOnlyPlaylist matches Electronic and Electronics titles", () => {
+  assert.equal(isPlaylistOrderOnlyPlaylist({ selectedTitle: "Electronic" }), true);
+  assert.equal(isPlaylistOrderOnlyPlaylist({ selectedTitle: "electronics" }), true);
+  assert.equal(isPlaylistOrderOnlyPlaylist({ selectedTitle: "Electronics" }), true);
+  assert.equal(isPlaylistOrderOnlyPlaylist({ selectedTitle: "Electronic Mix" }), false);
+  assert.equal(isPlaylistOrderOnlyPlaylist({ selectedTitle: "My Favorites" }), false);
+});
+
+const electronicFixture = [
+  { id: "first", addedAt: "2024-06-03T00:00:00.000Z", playlistPosition: 0 },
+  { id: "second", addedAt: "2024-06-01T00:00:00.000Z", playlistPosition: 1 },
+  { id: "third", addedAt: "2024-06-02T00:00:00.000Z", playlistPosition: 2 }
+];
+
+test("getDisplayedPlaylistTracks uses playlist order for Electronic playlist", () => {
+  const browser = {
+    selectedTitle: "Electronic",
+    tracks: electronicFixture,
+    trackFilterQuery: "",
+    trackSortMode: "newest"
+  };
+  assert.deepEqual(
+    getDisplayedPlaylistTracks(browser).map((t) => t.id),
+    ["third", "second", "first"]
+  );
+});
+
+test("getDisplayedPlaylistTracks still sorts other playlists by addedAt", () => {
+  const browser = {
+    selectedTitle: "My Favorites",
+    tracks: electronicFixture,
+    trackFilterQuery: "",
+    trackSortMode: "newest"
+  };
+  assert.deepEqual(
+    getDisplayedPlaylistTracks(browser).map((t) => t.id),
+    ["first", "third", "second"]
   );
 });

@@ -574,6 +574,20 @@ const renderNowPlayingTheaterNext = () => {
   nowPlayingTheaterNext.appendChild(row);
 };
 
+const pushTheaterVisualizerContext = () => {
+  const idx = queueState.currentIndex;
+  const item =
+    idx >= 0 && idx < queueState.queue.length ? queueState.queue[idx] : null;
+  globalThis.unifyTheaterVisualizer?.updatePlaybackContext?.({
+    queueItem: item,
+    trackKey: getNowPlayingEmbedKey(item),
+    spotifyPlaybackState,
+    soundcloudPlaybackState,
+    spotifyPausedByUser,
+    spotifyReloadNeedsUserResume
+  });
+};
+
 const openNowPlayingTheater = async () => {
   if (isNowPlayingTheaterOpen()) return;
   const idx = queueState.currentIndex;
@@ -582,6 +596,8 @@ const openNowPlayingTheater = async () => {
   syncNowPlayingTheaterToggle();
   renderNowPlayingTheaterNext();
   scheduleNowPlayingMetaTickerRefresh();
+  globalThis.unifyTheaterVisualizer?.onTheaterOpen?.();
+  pushTheaterVisualizerContext();
   try {
     if (nowPlayingRow?.requestFullscreen && document.fullscreenElement !== nowPlayingRow) {
       await nowPlayingRow.requestFullscreen();
@@ -591,6 +607,7 @@ const openNowPlayingTheater = async () => {
 
 const closeNowPlayingTheater = async () => {
   if (!isNowPlayingTheaterOpen()) return;
+  globalThis.unifyTheaterVisualizer?.onTheaterClose?.();
   const panel = getNowPlayingPanel();
   document.body.classList.remove("now-playing-theater-open");
   if (nowPlayingTheaterNext) {
@@ -615,6 +632,7 @@ const toggleNowPlayingTheater = () => {
 const handleNowPlayingTheaterFullscreenChange = () => {
   const inFs = document.fullscreenElement === nowPlayingRow;
   if (!inFs && isNowPlayingTheaterOpen()) {
+    globalThis.unifyTheaterVisualizer?.onTheaterClose?.();
     const panel = getNowPlayingPanel();
     document.body.classList.remove("now-playing-theater-open");
     if (nowPlayingTheaterNext) {
@@ -706,6 +724,7 @@ const patchSpotifyNowPlayingPanel = (item) => {
     reconnectHint.remove();
   }
   mountNowPlayingTheaterChrome();
+  pushTheaterVisualizerContext();
   return true;
 };
 
@@ -1696,6 +1715,7 @@ const patchSoundCloudPanelDom = (item) => {
   patchSoundCloudProgressDom(item);
   patchSoundCloudTransportDom(item);
   patchSoundCloudCover(panel, soundCloudResolveCoverUrl(item));
+  pushTheaterVisualizerContext();
 };
 
 const patchSoundCloudTransportState = (item) => {
@@ -6504,6 +6524,8 @@ globalThis.unifyVolume?.initVolumeControl?.({
   isConnected: () => isAnyProviderConnected(),
   theaterRoot: document.querySelector(".now-playing-theater-volume")
 });
+
+globalThis.unifyTheaterVisualizer?.init?.();
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "m" && event.key !== "M") return;

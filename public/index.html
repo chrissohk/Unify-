@@ -250,6 +250,32 @@
             >
               <div class="tab-panel-section">
                 <div id="nowPlayingRow" class="now-playing-row">
+                  <div
+                    class="now-playing-theater-visuals"
+                    data-testid="theater-visuals-control"
+                    hidden
+                  >
+                    <button
+                      type="button"
+                      id="theaterVisualsToggle"
+                      class="now-playing-theater-visuals__switch"
+                      role="switch"
+                      aria-checked="false"
+                      aria-label="Audio visuals"
+                      data-testid="theater-visuals-toggle"
+                    >
+                      <span class="now-playing-theater-visuals__track" aria-hidden="true">
+                        <span class="now-playing-theater-visuals__thumb"></span>
+                      </span>
+                    </button>
+                    <span class="now-playing-theater-visuals__label">Audio visuals</span>
+                    <p
+                      id="theaterVisualizerHint"
+                      class="now-playing-theater-visuals__hint"
+                      role="status"
+                      hidden
+                    ></p>
+                  </div>
                   <aside
                     id="nowPlayingTheaterNext"
                     class="now-playing-theater-next"
@@ -1676,6 +1702,7 @@
     <script src="/sortPlaylistTracks.js"></script>
     <script src="/playlistTrackDisplay.js"></script>
     <script src="/nowPlayingVinyl.js"></script>
+    <script src="/theaterVisualizer.js"></script>
     <script src="/appleMusicBrowse.js"></script>
     <script src="/app.js"></script>
   </body>

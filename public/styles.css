@@ -3088,7 +3088,7 @@ body.now-playing-theater-open .theater-visualizer-host canvas {
   height: 100% !important;
 }
 
-body.now-playing-theater-open #nowPlayingRow > :not(.theater-visualizer-host) {
+body.now-playing-theater-open #nowPlayingRow > :not(.theater-visualizer-host):not(.now-playing-theater-visuals) {
   position: relative;
   z-index: 1;
 }
@@ -3097,12 +3097,13 @@ body.now-playing-theater-open #nowPlayingRow > :not(.theater-visualizer-host) {
   display: none;
 }
 
-body.now-playing-theater-open .now-playing-theater-visuals {
+body.now-playing-theater-open #nowPlayingRow > .now-playing-theater-visuals {
   display: flex;
   position: fixed;
   top: clamp(16px, 3vh, 32px);
   right: clamp(16px, 3vw, 32px);
   z-index: 210;
+  pointer-events: auto;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;

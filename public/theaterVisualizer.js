@@ -116,7 +116,11 @@
   function syncToggleVisibility() {
     const wrap = document.querySelector(".now-playing-theater-visuals");
     if (!wrap) return;
-    wrap.hidden = !state.theaterOpen;
+    if (state.theaterOpen) {
+      wrap.removeAttribute("hidden");
+    } else {
+      wrap.hidden = true;
+    }
     if (!isCaptureSupported()) {
       wrap.setAttribute("title", "Audio visuals are not supported in this browser.");
     } else {

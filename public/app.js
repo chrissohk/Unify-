@@ -645,6 +645,8 @@ const handleNowPlayingTheaterFullscreenChange = () => {
   }
   if (inFs && !isNowPlayingTheaterOpen()) {
     document.body.classList.add("now-playing-theater-open");
+    globalThis.unifyTheaterVisualizer?.onTheaterOpen?.();
+    pushTheaterVisualizerContext();
     renderNowPlayingTheaterNext();
     syncNowPlayingTheaterToggle();
   }

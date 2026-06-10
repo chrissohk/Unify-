@@ -70,12 +70,15 @@
         }
 
         mediaSource = ac.createMediaStreamSource(stream);
-        const tabInput = { output: mediaSource };
-        fft = new p5.FFT(0, 1024);
-        fft.setInput(tabInput);
-        amplitude = new p5.Amplitude();
-        amplitude.setInput(tabInput);
-        peakDetect = new p5.PeakDetect();
+        const tap = ac.createGain();
+        tap.gain.value = 1;
+        mediaSource.connect(tap);
+
+        fft = new p.FFT(0, 1024);
+        fft.setInput(tap);
+        amplitude = new p.Amplitude();
+        amplitude.setInput(tap);
+        peakDetect = new p.PeakDetect();
         resetSketchState();
       };
 
@@ -92,6 +95,8 @@
           p.background(0, 0, 15);
           return;
         }
+
+        fft.analyze();
 
         p.noStroke();
         p.colorMode(p.HSB, 360);
@@ -330,8 +335,8 @@
 
   async function warmupAudio() {
     if (typeof p5 === "undefined") return;
-    const ac = p5.prototype.getAudioContext?.() || window.AudioContext && new AudioContext();
-    if (ac && ac.state === "suspended") {
+    const ac = p5.prototype.getAudioContext?.();
+    if (ac?.state === "suspended") {
       await ac.resume();
     }
   }

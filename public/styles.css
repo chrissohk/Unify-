@@ -2897,6 +2897,11 @@ li .actions {
   will-change: transform;
 }
 
+.vinyl-hero:not(.is-spinning) .vinyl-hero__disc-inner {
+  animation: none;
+  will-change: auto;
+}
+
 @keyframes vinylSpin {
   from {
     transform: rotate(0deg);

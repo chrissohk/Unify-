@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const { isNowPlayingActivelyPlaying } = require("../public/nowPlayingVinyl.js");
 
 test.describe("unified queue", () => {
   test.beforeEach(async ({ request }) => {
@@ -170,6 +171,38 @@ test.describe("unified queue", () => {
 
     await page.keyboard.press("Escape");
     await expect(page.locator("body")).not.toHaveClass(/now-playing-theater-open/);
+  });
+
+  test("theater mode stops vinyl spin when playback is paused", async ({ page, request }) => {
+    await request.post("/api/auth/spotify/connect");
+    await request.post("/api/queue", { data: { provider: "spotify", trackId: "sp-1" } });
+    await request.post("/api/queue/now-playing", { data: { index: 0 } });
+
+    await page.goto("/");
+    await page.getByTestId("tab-now-playing").click();
+    await page.getByTestId("now-playing-theater-toggle").click();
+    await expect(page.locator("body")).toHaveClass(/now-playing-theater-open/);
+
+    const item = { provider: "spotify" };
+    const playing = isNowPlayingActivelyPlaying(item, {
+      spotifyPlaybackState: { paused: false },
+      spotifyPausedByUser: false,
+      spotifyReloadNeedsUserResume: false
+    });
+    await page.evaluate((spin) => {
+      document.querySelector(".vinyl-hero")?.classList.toggle("is-spinning", spin);
+    }, playing);
+    await expect(page.locator(".vinyl-hero")).toHaveClass(/is-spinning/);
+
+    const paused = isNowPlayingActivelyPlaying(item, {
+      spotifyPlaybackState: { paused: true },
+      spotifyPausedByUser: true,
+      spotifyReloadNeedsUserResume: false
+    });
+    await page.evaluate((spin) => {
+      document.querySelector(".vinyl-hero")?.classList.toggle("is-spinning", spin);
+    }, paused);
+    await expect(page.locator(".vinyl-hero")).not.toHaveClass(/is-spinning/);
   });
 
   test("reload restores Spotify seek position from session snapshot", async ({ page, request }) => {

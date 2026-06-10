@@ -328,11 +328,29 @@ const resolveNowPlayingHeroCoverUrl = (item) => {
   return String(item.imageUrl || "").trim();
 };
 
+const nowPlayingVinylCtx = () => ({
+  spotifyPlaybackState,
+  soundcloudPlaybackState,
+  spotifyPausedByUser,
+  spotifyReloadNeedsUserResume
+});
+
 const isNowPlayingActivelyPlaying = (item) => {
+  const fn = window.NowPlayingVinyl?.isNowPlayingActivelyPlaying;
+  if (typeof fn === "function") return fn(item, nowPlayingVinylCtx());
   if (!item) return false;
-  if (item.provider === "spotify") return !Boolean(spotifyPlaybackState?.paused);
+  if (item.provider === "spotify") {
+    if (spotifyPausedByUser || spotifyReloadNeedsUserResume) return false;
+    return !Boolean(spotifyPlaybackState?.paused);
+  }
   if (item.provider === "soundcloud") return !Boolean(soundcloudPlaybackState?.paused);
   return false;
+};
+
+const syncNowPlayingVinylSpin = () => {
+  const idx = queueState.currentIndex;
+  const cur = idx >= 0 && idx < queueState.queue.length ? queueState.queue[idx] : null;
+  renderNowPlayingHero(cur);
 };
 
 const getNowPlayingHeroElements = () => {
@@ -2727,6 +2745,10 @@ const spotifyPause = async () => {
     clearSpotifyWallAnchor();
     await spotifyPlayer.pause();
     spotifyPausedByUser = true;
+    if (spotifyPlaybackState) {
+      spotifyPlaybackState = { ...spotifyPlaybackState, paused: true };
+    }
+    syncNowPlayingVinylSpin();
   } finally {
     spotifyControlBusy = false;
   }
@@ -2782,6 +2804,10 @@ const spotifyResume = async () => {
     spotifyPausedByUser = false;
     spotifyReloadNeedsUserResume = false;
     spotifyPlaybackPendingUserResume = false;
+    if (spotifyPlaybackState) {
+      spotifyPlaybackState = { ...spotifyPlaybackState, paused: false };
+    }
+    syncNowPlayingVinylSpin();
     const pos = Number(spotifyPlaybackState?.positionMs) || 0;
     spotifyWallStartMs = Date.now() - pos;
     spotifyWallAnchorKey = `${idx}:${item.trackId}`;
@@ -6516,7 +6542,7 @@ window.addEventListener("beforeunload", flushReloadSnapshotsOnExit);
 setInterval(() => {
   if (spotifySeekDragging) return;
   if (!spotifySdkReady || !spotifyDeviceId) return;
-  if (!spotifyPlaybackState || spotifyPlaybackState.paused) return;
+  if (!spotifyPlaybackState || spotifyPlaybackState.paused || spotifyPausedByUser) return;
   spotifyPlaybackState = {
     ...spotifyPlaybackState,
     positionMs: Math.min(

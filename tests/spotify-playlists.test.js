@@ -423,6 +423,7 @@ test("spotifyListPlaylistTracks parses results and null next", async () => {
     assert.equal(r.results[0].id, "t1");
     assert.equal(r.results[0].imageUrl, "https://i.scdn.co/image/enriched.jpg");
     assert.equal(r.results[0].addedAt, "2024-04-01T12:00:00.000Z");
+    assert.equal(r.results[0].playlistPosition, 0);
     assert.equal(r.nextOffset, null);
   } finally {
     global.fetch = originalFetch;

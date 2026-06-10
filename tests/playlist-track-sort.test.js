@@ -33,19 +33,35 @@ test("sortPlaylistTracks sorts oldest first by addedAt", () => {
   );
 });
 
-test("sortPlaylistTracks keeps stable order for equal timestamps", () => {
+test("sortPlaylistTracks reverses by playlistPosition when timestamps tie", () => {
   const tied = [
-    { id: "1", addedAt: "2024-01-01T00:00:00.000Z" },
-    { id: "2", addedAt: "2024-01-01T00:00:00.000Z" },
-    { id: "3", addedAt: "2024-01-01T00:00:00.000Z" }
+    { id: "1", addedAt: "2024-01-01T00:00:00.000Z", playlistPosition: 0 },
+    { id: "2", addedAt: "2024-01-01T00:00:00.000Z", playlistPosition: 1 },
+    { id: "3", addedAt: "2024-01-01T00:00:00.000Z", playlistPosition: 2 }
   ];
   assert.deepEqual(
     sortPlaylistTracks(tied, "newest").map((t) => t.id),
-    ["1", "2", "3"]
+    ["3", "2", "1"]
   );
   assert.deepEqual(
     sortPlaylistTracks(tied, "oldest").map((t) => t.id),
     ["1", "2", "3"]
+  );
+});
+
+test("sortPlaylistTracks tail page with same addedAt shows newest playlist positions first", () => {
+  const tailPage = [
+    { id: "t48", addedAt: "2024-06-01T00:00:00.000Z", playlistPosition: 48 },
+    { id: "t49", addedAt: "2024-06-01T00:00:00.000Z", playlistPosition: 49 },
+    { id: "t50", addedAt: "2024-06-01T00:00:00.000Z", playlistPosition: 50 }
+  ];
+  assert.deepEqual(
+    sortPlaylistTracks(tailPage, "newest").map((t) => t.id),
+    ["t50", "t49", "t48"]
+  );
+  assert.deepEqual(
+    sortPlaylistTracks(tailPage, "oldest").map((t) => t.id),
+    ["t48", "t49", "t50"]
   );
 });
 

@@ -10,6 +10,17 @@ function parseAddedAtEpoch(addedAt) {
   return Number.isFinite(ms) ? ms : null;
 }
 
+function playlistPositionOrIndex(track, fallbackIndex) {
+  const pos = track?.playlistPosition;
+  return typeof pos === "number" && Number.isFinite(pos) ? pos : fallbackIndex;
+}
+
+function compareByPlaylistPosition(a, b, mode) {
+  const aPos = playlistPositionOrIndex(a.track, a.index);
+  const bPos = playlistPositionOrIndex(b.track, b.index);
+  return mode === "newest" ? bPos - aPos : aPos - bPos;
+}
+
 function sortPlaylistTracks(tracks, mode) {
   const list = Array.isArray(tracks) ? tracks : [];
   if (mode !== "newest" && mode !== "oldest") return list;
@@ -23,18 +34,18 @@ function sortPlaylistTracks(tracks, mode) {
     .sort((a, b) => {
       const aHas = a.ts !== null;
       const bHas = b.ts !== null;
-      if (!aHas && !bHas) return a.index - b.index;
+      if (!aHas && !bHas) return compareByPlaylistPosition(a, b, mode);
       if (!aHas) return 1;
       if (!bHas) return -1;
       if (a.ts !== b.ts) {
         return mode === "newest" ? b.ts - a.ts : a.ts - b.ts;
       }
-      return a.index - b.index;
+      return compareByPlaylistPosition(a, b, mode);
     })
     .map(({ track }) => track);
 }
 
-const api = { sortPlaylistTracks, parseAddedAtEpoch };
+const api = { sortPlaylistTracks, parseAddedAtEpoch, playlistPositionOrIndex };
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = api;

@@ -62,7 +62,7 @@ Open `.env` to edit it:
 notepad .env
 ```
 
-In Notepad, paste your API keys **right after the `=`** on each line (no spaces). For demo mode, leave the ID/secret lines empty and save.
+In Notepad, paste your API keys **right after the `=`** on each line (no spaces). For demo mode, leave the ID/secret lines empty and save (**Scroll to bottom for API Keys setup)
 
 Example (use your own values):
 
@@ -136,7 +136,7 @@ Open `.env` to edit it:
 open -e .env
 ```
 
-In TextEdit, choose **Format → Make Plain Text**, then paste your API keys **right after the `=`** on each line (no spaces). For demo mode, leave the ID/secret lines empty and save.
+In TextEdit, choose **Format → Make Plain Text**, then paste your API keys **right after the `=`** on each line (no spaces). For demo mode, leave the ID/secret lines empty and save (**Scroll to bottom for API Keys setup)
 
 Example (use your own values):
 

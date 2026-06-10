@@ -6,6 +6,8 @@ Queue tracks from Spotify and SoundCloud in one list. Runs on your computer only
 
 Open the app at **http://127.0.0.1:3000** (do not double-click `public/index.html`).
 
+**Already set up?** Jump to [Returning users](#returning-users).
+
 ---
 
 ## First-time setup
@@ -164,22 +166,36 @@ Stop the server: **Ctrl+C**
 
 ---
 
-## Every time you use the app
+## Returning users
 
-You do **not** need to clone or run `npm install` again unless you deleted the folder or pulled updates that changed dependencies.
+Use this section every time after you have completed [First-time setup](#first-time-setup) once.
 
-### Windows (PowerShell)
+### What you can skip
+
+- Do **not** run `git clone` again
+- Do **not** reinstall Node.js
+- Do **not** recreate **`.env`** (unless you deleted it or moved to a new computer)
+- Do **not** run `npm install` unless you ran `git pull` and dependencies changed, or `node_modules` is missing
+
+### What you must do each session
+
+1. Open the **same project folder** where you ran setup before (it should contain `package.json`, `.env`, and usually `node_modules`).
+2. Run `npm start` and leave the terminal **open** while you use the app.
+3. Open **http://127.0.0.1:3000** in your browser.
+4. Click **Connect** for Spotify and SoundCloud after each server restart (your queue may still be saved, but provider logins must be reconnected).
+
+### Start the app
+
+#### Windows (PowerShell)
+
+Open **PowerShell**. Paste **one line at a time**. Press **Enter** after each.
+
+Go to your project folder:
 
 ```powershell
 cd "$env:USERPROFILE\OneDrive\Desktop\Unify-"
 ```
 
-Get latest code (optional):
-
-```powershell
-git pull
-```
-
 Start the app:
 
 ```powershell
@@ -187,23 +203,19 @@ npm start
 ```
 
 Open: **http://127.0.0.1:3000**
-
-Click **Connect** for Spotify and SoundCloud after each server restart.
 
 Stop the server: **Ctrl+C**
 
 ---
 
-### Mac (Terminal)
+#### Mac (Terminal)
+
+Open **Terminal**. Paste **one line at a time**. Press **Enter** after each.
+
+Go to your project folder:
 
 ```bash
 cd ~/Desktop/Unify-
-```
-
-Get latest code (optional):
-
-```bash
-git pull
 ```
 
 Start the app:
@@ -214,9 +226,51 @@ npm start
 
 Open: **http://127.0.0.1:3000**
 
-Click **Connect** for Spotify and SoundCloud after each server restart.
-
 Stop the server: **Ctrl+C**
+
+---
+
+### Get updates from GitHub (optional)
+
+Only if you originally used `git clone` and want the latest code.
+
+#### Windows (PowerShell)
+
+```powershell
+cd "$env:USERPROFILE\OneDrive\Desktop\Unify-"
+```
+
+```powershell
+git pull
+```
+
+```powershell
+npm install
+```
+
+```powershell
+npm start
+```
+
+#### Mac (Terminal)
+
+```bash
+cd ~/Desktop/Unify-
+```
+
+```bash
+git pull
+```
+
+```bash
+npm install
+```
+
+```bash
+npm start
+```
+
+Then open **http://127.0.0.1:3000** and click **Connect** again.
 
 ---
 

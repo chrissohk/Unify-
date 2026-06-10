@@ -632,6 +632,9 @@ const toggleNowPlayingTheater = () => {
 const handleNowPlayingTheaterFullscreenChange = () => {
   const inFs = document.fullscreenElement === nowPlayingRow;
   if (!inFs && isNowPlayingTheaterOpen()) {
+    if (globalThis.unifyTheaterVisualizer?.shouldSuppressTheaterFullscreenExit?.()) {
+      return;
+    }
     globalThis.unifyTheaterVisualizer?.onTheaterClose?.();
     const panel = getNowPlayingPanel();
     document.body.classList.remove("now-playing-theater-open");

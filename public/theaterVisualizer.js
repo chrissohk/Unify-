@@ -6,10 +6,14 @@
 
 (function () {
   const HINT_ID = "theaterVisualizerHint";
+  const CAPTURE_HINT =
+    "Choose this tab and turn on Also allow tab audio, then click Allow.";
 
   const state = {
     theaterOpen: false,
+    visualsRequested: false,
     enabled: false,
+    awaitingCapturePermission: false,
     stream: null,
     p5Instance: null,
     captureEndedHandler: null,
@@ -29,6 +33,10 @@
 
   function isCaptureSupported() {
     return Boolean(navigator.mediaDevices?.getDisplayMedia);
+  }
+
+  function shouldSuppressTheaterFullscreenExit() {
+    return state.awaitingCapturePermission;
   }
 
   function loadScript(src) {
@@ -62,6 +70,15 @@
 
   function getNowPlayingRow() {
     return document.getElementById("nowPlayingRow");
+  }
+
+  async function restoreTheaterFullscreen() {
+    const row = getNowPlayingRow();
+    if (!row?.requestFullscreen || !state.theaterOpen) return;
+    if (document.fullscreenElement === row) return;
+    try {
+      await row.requestFullscreen();
+    } catch (_) {}
   }
 
   function ensureSketchHost() {
@@ -107,10 +124,11 @@
 
   function syncToggleUi() {
     if (!toggleEl) return;
-    const on = state.enabled;
+    const on = state.visualsRequested;
     toggleEl.setAttribute("aria-checked", on ? "true" : "false");
     toggleEl.classList.toggle("is-on", on);
-    toggleEl.disabled = !state.theaterOpen || !isCaptureSupported();
+    toggleEl.disabled =
+      !state.theaterOpen || !isCaptureSupported() || state.awaitingCapturePermission;
   }
 
   function syncToggleVisibility() {
@@ -154,6 +172,7 @@
 
   function onCaptureEnded() {
     state.enabled = false;
+    state.visualsRequested = false;
     stopCapture();
     syncToggleUi();
     showHint("Tab audio capture ended. Turn visuals on again to re-share this tab.");
@@ -170,26 +189,33 @@
       constraints.systemAudio = "exclude";
     }
 
-    const stream = await navigator.mediaDevices.getDisplayMedia(constraints);
+    state.awaitingCapturePermission = true;
+    showHint(CAPTURE_HINT);
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia(constraints);
 
-    stream.getVideoTracks().forEach((track) => {
-      track.stop();
-      stream.removeTrack(track);
-    });
+      stream.getVideoTracks().forEach((track) => {
+        track.stop();
+        stream.removeTrack(track);
+      });
 
-    const audioTracks = stream.getAudioTracks();
-    if (!audioTracks.length) {
-      stream.getTracks().forEach((track) => track.stop());
-      throw new Error("No tab audio shared. Choose this tab and enable Share tab audio.");
+      const audioTracks = stream.getAudioTracks();
+      if (!audioTracks.length) {
+        stream.getTracks().forEach((track) => track.stop());
+        throw new Error("No tab audio shared. Choose this tab and enable Share tab audio.");
+      }
+
+      state.captureEndedHandler = onCaptureEnded;
+      audioTracks[0].addEventListener("ended", state.captureEndedHandler);
+      return stream;
+    } finally {
+      state.awaitingCapturePermission = false;
     }
-
-    state.captureEndedHandler = onCaptureEnded;
-    audioTracks[0].addEventListener("ended", state.captureEndedHandler);
-    return stream;
   }
 
   async function setEnabled(enabled) {
     if (!enabled) {
+      state.visualsRequested = false;
       state.enabled = false;
       stopCapture();
       syncToggleUi();
@@ -200,11 +226,16 @@
     if (!state.theaterOpen) return;
 
     stopCapture();
+    state.enabled = false;
 
     try {
       await ensureVisualizerScripts();
       await window.TheaterVisualizerSketch?.warmupAudio?.();
       const stream = await startCapture();
+      if (!state.visualsRequested || !state.theaterOpen) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       state.stream = stream;
       state.enabled = true;
       const host = ensureSketchHost();
@@ -213,8 +244,10 @@
       });
       syncToggleUi();
       showHint("");
+      await restoreTheaterFullscreen();
     } catch (err) {
       state.enabled = false;
+      state.visualsRequested = false;
       stopCapture();
       syncToggleUi();
       const denied =
@@ -230,20 +263,29 @@
   }
 
   function onToggleClick() {
-    void setEnabled(!state.enabled);
+    if (state.awaitingCapturePermission) return;
+    const next = !state.visualsRequested;
+    state.visualsRequested = next;
+    syncToggleUi();
+    void setEnabled(next);
   }
 
   function onTheaterOpen() {
     state.theaterOpen = true;
-    state.enabled = false;
-    stopCapture();
     syncToggleVisibility();
-    showHint("");
+    if (!state.visualsRequested) {
+      showHint("");
+    }
+    if (state.visualsRequested && !state.stream) {
+      void setEnabled(true);
+    }
   }
 
   function onTheaterClose() {
     state.theaterOpen = false;
+    state.visualsRequested = false;
     state.enabled = false;
+    state.awaitingCapturePermission = false;
     stopCapture();
     syncToggleVisibility();
     showHint("");
@@ -272,7 +314,8 @@
     onTheaterOpen,
     onTheaterClose,
     updatePlaybackContext,
-    isCaptureSupported
+    isCaptureSupported,
+    shouldSuppressTheaterFullscreenExit
   };
 
   if (typeof window !== "undefined") {

@@ -1,13 +1,13 @@
 "use strict";
 
 /**
- * Theater tab-audio visualizer — capture lifecycle and UI toggle.
+ * Theater mic-audio visualizer — capture lifecycle and UI toggle.
  */
 
 (function () {
   const HINT_ID = "theaterVisualizerHint";
   const CAPTURE_HINT =
-    "Choose this tab and turn on Also allow tab audio, then click Allow.";
+    "Allow microphone access to drive audio visuals. Headphones recommended.";
 
   const state = {
     theaterOpen: false,
@@ -32,11 +32,69 @@
   let scriptsLoaded = false;
 
   function isCaptureSupported() {
-    return Boolean(navigator.mediaDevices?.getDisplayMedia);
+    return Boolean(navigator.mediaDevices?.getUserMedia);
   }
 
   function shouldSuppressTheaterFullscreenExit() {
     return state.awaitingCapturePermission;
+  }
+
+  function getMicErrorMessage(err) {
+    const name = err?.name || "";
+    const msg = String(err?.message || "");
+    if (name === "NotAllowedError" || name === "PermissionDeniedError" || /denied|dismiss/i.test(msg)) {
+      return "Microphone access denied. Visuals stay off until you allow the mic.";
+    }
+    if (name === "NotFoundError" || /device not found|requested device/i.test(msg)) {
+      return "No microphone found. Connect a mic or enable it in system and browser privacy settings, then try again.";
+    }
+    if (name === "NotReadableError" || name === "TrackStartError") {
+      return "Microphone is in use by another app. Close it and try again.";
+    }
+    return msg || "Could not start audio visuals.";
+  }
+
+  async function requestMicStream() {
+    const attempts = [
+      { audio: true },
+      {
+        audio: {
+          echoCancellation: { ideal: true },
+          noiseSuppression: { ideal: true },
+          autoGainControl: { ideal: true }
+        }
+      }
+    ];
+
+    let lastError = null;
+    for (const constraints of attempts) {
+      try {
+        return await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        lastError = err;
+        if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
+          throw err;
+        }
+      }
+    }
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const inputs = devices.filter((device) => device.kind === "audioinput");
+    for (const device of inputs) {
+      if (!device.deviceId) continue;
+      try {
+        return await navigator.mediaDevices.getUserMedia({
+          audio: { deviceId: { ideal: device.deviceId } }
+        });
+      } catch (err) {
+        lastError = err;
+        if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
+          throw err;
+        }
+      }
+    }
+
+    throw lastError || new Error("No microphone found.");
   }
 
   function loadScript(src) {
@@ -175,34 +233,19 @@
     state.visualsRequested = false;
     stopCapture();
     syncToggleUi();
-    showHint("Tab audio capture ended. Turn visuals on again to re-share this tab.");
+    showHint("Mic access ended. Turn visuals on again to re-enable.");
   }
 
   async function startCapture() {
-    const constraints = {
-      video: true,
-      audio: true
-    };
-    if (typeof window !== "undefined") {
-      constraints.preferCurrentTab = true;
-      constraints.selfBrowserSurface = "include";
-      constraints.systemAudio = "exclude";
-    }
-
     state.awaitingCapturePermission = true;
     showHint(CAPTURE_HINT);
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia(constraints);
-
-      stream.getVideoTracks().forEach((track) => {
-        track.stop();
-        stream.removeTrack(track);
-      });
+      const stream = await requestMicStream();
 
       const audioTracks = stream.getAudioTracks();
       if (!audioTracks.length) {
         stream.getTracks().forEach((track) => track.stop());
-        throw new Error("No tab audio shared. Choose this tab and enable Share tab audio.");
+        throw new Error("No microphone audio available.");
       }
 
       state.captureEndedHandler = onCaptureEnded;
@@ -250,15 +293,7 @@
       state.visualsRequested = false;
       stopCapture();
       syncToggleUi();
-      const denied =
-        err?.name === "NotAllowedError" ||
-        err?.name === "PermissionDeniedError" ||
-        /denied|dismiss/i.test(String(err?.message || ""));
-      showHint(
-        denied
-          ? "Tab audio not shared. Visuals stay off until you allow sharing."
-          : err?.message || "Could not start audio visuals."
-      );
+      showHint(getMicErrorMessage(err));
     }
   }
 

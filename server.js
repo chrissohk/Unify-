@@ -50,8 +50,10 @@ const {
   soundCloudListLibrary,
   soundCloudListPlaylistTracksById,
   soundCloudEnrichPlaylistTrackCountsByRefs,
+  soundCloudFetchLikesSummary,
   SOUNDCLOUD_LIKES_ID
 } = require("./lib/soundcloudWebApi");
+const { computeTailPageOffset, computeTracksOlderOffset } = require("./lib/playlistTrackDisplay");
 const { resolveProviderHealth } = require("./lib/providerHealth");
 const { isAppleMusicConfigured, appleMusicSetupHint } = require("./lib/appleMusicConfig");
 const {
@@ -268,6 +270,9 @@ function mockSpotifyLikedSongsSummary() {
 
 function spotifyLikedSongsErrorHint(likedResult) {
   if (!likedResult || likedResult.ok) return null;
+  if (!spotifyEnvIncludesLibraryReadScope()) {
+    return "SPOTIFY_SCOPES in .env is missing user-library-read (required for Liked Songs). Add it, restart npm start, then disconnect and reconnect Spotify.";
+  }
   if (likedResult.status === 403) {
     return "Reconnect Spotify (Disconnect, then Connect) to allow access to Liked Songs.";
   }
@@ -485,6 +490,10 @@ function spotifyConfiguredScopeList() {
 function spotifyEnvIncludesPlaylistReadScopes() {
   const scopes = spotifyConfiguredScopeList();
   return scopes.includes("playlist-read-private") || scopes.includes("playlist-read-collaborative");
+}
+
+function spotifyEnvIncludesLibraryReadScope() {
+  return spotifyConfiguredScopeList().includes("user-library-read");
 }
 
 function mapSpotifyBrowseError(res, liveResult, fallbackCode) {
@@ -1242,14 +1251,26 @@ app.get("/api/soundcloud/playlists/:playlistId/tracks", async (req, res) => {
   const limit = Math.min(Number(req.query.limit || 50) || 50, 50);
   const offset = Math.max(Number(req.query.offset || 0) || 0, 0);
   const secretToken = (req.query.secretToken || "").toString().trim() || undefined;
+  const edgeRaw = (req.query.edge || "").toString().trim().toLowerCase();
+  const edge = edgeRaw === "newest" ? "newest" : undefined;
 
   const tokenResult = await getSoundCloudAccessToken({ sessions, persist });
   if (!tokenResult.ok) {
     const mockTracks = mockSoundCloudPlaylistTracks(playlistId);
     if (soundCloudTokenAllowsMockCatalog(tokenResult) && mockTracks) {
+      const total = mockTracks.length;
+      let fetchOffset = offset;
+      if (edge === "newest" && offset === 0 && total > limit) {
+        fetchOffset = computeTailPageOffset(total, limit);
+      }
+      const pageEnd = Math.min(fetchOffset + limit, total);
+      const slice = mockTracks.slice(fetchOffset, pageEnd);
       return res.json({
-        results: mockTracks,
-        nextOffset: null,
+        results: slice,
+        nextOffset: pageEnd < total ? pageEnd : null,
+        pageOffset: fetchOffset,
+        collectionTotal: total,
+        tracksOlderOffset: computeTracksOlderOffset(fetchOffset, limit),
         demoMode: true
       });
     }
@@ -1266,12 +1287,41 @@ app.get("/api/soundcloud/playlists/:playlistId/tracks", async (req, res) => {
     return res.status(401).json(body);
   }
 
+  const accessToken = tokenResult.accessToken;
+  let fetchOffset = offset;
+
+  const resolveSoundCloudTracksTotal = async (token) => {
+    if (playlistId === SOUNDCLOUD_LIKES_ID) {
+      const summary = await soundCloudFetchLikesSummary({ accessToken: token });
+      if (summary.ok && typeof summary.likes?.trackCount === "number") {
+        return summary.likes.trackCount;
+      }
+      return null;
+    }
+    const probe = await soundCloudListPlaylistTracksById({
+      accessToken: token,
+      playlistId,
+      secretToken,
+      limit: 1,
+      offset: 0
+    });
+    if (!probe.ok) return null;
+    return typeof probe.collectionTotal === "number" ? probe.collectionTotal : null;
+  };
+
+  if (edge === "newest" && offset === 0) {
+    const total = await resolveSoundCloudTracksTotal(accessToken);
+    if (typeof total === "number" && total > limit) {
+      fetchOffset = computeTailPageOffset(total, limit);
+    }
+  }
+
   let liveResult = await soundCloudListPlaylistTracksById({
-    accessToken: tokenResult.accessToken,
+    accessToken,
     playlistId,
     secretToken,
     limit,
-    offset
+    offset: fetchOffset
   });
 
   if (!liveResult.ok && liveResult.status === 401) {
@@ -1282,12 +1332,20 @@ app.get("/api/soundcloud/playlists/:playlistId/tracks", async (req, res) => {
         code: refreshResult.code || "SOUNDCLOUD_REFRESH_FAILED"
       });
     }
+    let refreshedOffset = offset;
+    if (edge === "newest" && offset === 0) {
+      const total = await resolveSoundCloudTracksTotal(refreshResult.accessToken);
+      if (typeof total === "number" && total > limit) {
+        refreshedOffset = computeTailPageOffset(total, limit);
+      }
+    }
+    fetchOffset = refreshedOffset;
     liveResult = await soundCloudListPlaylistTracksById({
       accessToken: refreshResult.accessToken,
       playlistId,
       secretToken,
       limit,
-      offset
+      offset: fetchOffset
     });
   }
 
@@ -1295,9 +1353,15 @@ app.get("/api/soundcloud/playlists/:playlistId/tracks", async (req, res) => {
     return mapSoundCloudBrowseError(res, liveResult, "SOUNDCLOUD_PLAYLIST_TRACKS_FAILED");
   }
 
+  const collectionTotal =
+    typeof liveResult.collectionTotal === "number" ? liveResult.collectionTotal : null;
   return res.json({
     results: liveResult.results || [],
-    nextOffset: liveResult.nextOffset,
+    nextOffset: liveResult.nextOffset ?? null,
+    pageOffset: fetchOffset,
+    collectionTotal,
+    total: collectionTotal,
+    tracksOlderOffset: computeTracksOlderOffset(fetchOffset, limit),
     demoMode: false
   });
 });
@@ -1876,6 +1940,11 @@ if (require.main === module) {
     if (spOk && !spotifyEnvIncludesPlaylistReadScopes()) {
       console.warn(
         "Spotify playlists: SPOTIFY_SCOPES is missing playlist-read-private / playlist-read-collaborative — playlist browser will fail until .env is updated and you reconnect."
+      );
+    }
+    if (spOk && !spotifyEnvIncludesLibraryReadScope()) {
+      console.warn(
+        "Spotify Liked Songs: SPOTIFY_SCOPES is missing user-library-read — Liked Songs will fail until .env is updated and you reconnect."
       );
     }
   });

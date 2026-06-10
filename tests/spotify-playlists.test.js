@@ -664,6 +664,43 @@ test("spotifyListPlaylistTracks routes liked songs id to saved tracks", async ()
   }
 });
 
+test("mapSpotifyBrowseError surfaces missing user-library-read in SPOTIFY_SCOPES", () => {
+  const { mapSpotifyBrowseError } = require("../server");
+  const prev = process.env.SPOTIFY_SCOPES;
+  process.env.SPOTIFY_SCOPES =
+    "streaming user-modify-playback-state user-read-email user-read-private playlist-read-private playlist-read-collaborative";
+  const res = {
+    statusCode: null,
+    body: null,
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(payload) {
+      this.body = payload;
+      return this;
+    },
+    set() {
+      return this;
+    }
+  };
+  try {
+    mapSpotifyBrowseError(
+      res,
+      { status: 403, code: "SPOTIFY_LIKED_SONGS_FAILED", details: "forbidden" },
+      "SPOTIFY_LIKED_SONGS_FAILED"
+    );
+    assert.equal(res.statusCode, 403);
+    assert.match(res.body.error, /user-library-read/i);
+  } finally {
+    if (prev === undefined) {
+      delete process.env.SPOTIFY_SCOPES;
+    } else {
+      process.env.SPOTIFY_SCOPES = prev;
+    }
+  }
+});
+
 test("mapSpotifyBrowseError uses Liked Songs hint for liked-songs 403, not followed-playlist copy", () => {
   const { mapSpotifyBrowseError } = require("../server");
   const res = {

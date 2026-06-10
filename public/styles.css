@@ -3088,7 +3088,7 @@ body.now-playing-theater-open .theater-visualizer-host canvas {
   height: 100% !important;
 }
 
-body.now-playing-theater-open #nowPlayingRow > :not(.theater-visualizer-host):not(.now-playing-theater-visuals) {
+body.now-playing-theater-open #nowPlayingRow > :not(.theater-visualizer-host):not(.now-playing-theater-visuals):not(.now-playing-theater-next):not(.now-playing-theater-chrome) {
   position: relative;
   z-index: 1;
 }
@@ -3321,12 +3321,13 @@ body.now-playing-theater-open .volume-control--theater .volume-control__popover 
   display: none !important;
 }
 
-body.now-playing-theater-open .now-playing-theater-next {
+body.now-playing-theater-open #nowPlayingRow > .now-playing-theater-next {
   display: block;
   position: fixed;
   left: clamp(16px, 3vw, 32px);
   right: auto;
   bottom: clamp(16px, 3vh, 32px);
+  top: auto;
   z-index: 210;
   max-width: min(280px, 42vw);
   padding: 12px 14px;

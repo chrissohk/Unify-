@@ -31,9 +31,28 @@ function computeTracksOlderOffset(pageOffset, limit = 50) {
   return Math.max(safeOffset - safeLimit, 0);
 }
 
+function shouldRefetchNewestTailPage({
+  kind,
+  trackSortMode,
+  initialOffset,
+  pageOffset,
+  collectionTotal,
+  limit = 50
+}) {
+  if (kind !== "likes" || normalizePlaylistTrackSortMode(trackSortMode) !== "newest") {
+    return false;
+  }
+  if (initialOffset !== 0 || (typeof pageOffset === "number" && pageOffset > 0)) {
+    return false;
+  }
+  const total = typeof collectionTotal === "number" ? collectionTotal : null;
+  if (total === null || total <= limit) return false;
+  return computeTailPageOffset(total, limit) > 0;
+}
+
 function resolveNewestFirstFetchParams({ kind, trackCount, limit = 50 }) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 50);
-  if (kind === "liked_songs" || kind === "likes") {
+  if (kind === "liked_songs") {
     return { offset: 0, tracksOlderOffset: null, useEdge: true };
   }
   const total = typeof trackCount === "number" ? trackCount : null;
@@ -70,6 +89,7 @@ const api = {
   computeTailPageOffset,
   computeTracksOlderOffset,
   resolveNewestFirstFetchParams,
+  shouldRefetchNewestTailPage,
   playlistSortNeedsBulkFetch,
   getDisplayedPlaylistTracks
 };

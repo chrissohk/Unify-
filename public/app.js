@@ -960,6 +960,7 @@ let soundcloudPlaylistBrowser = {
   demoMode: false,
   selectedId: null,
   selectedTitle: "",
+  selectedPlaylistKind: null,
   selectedSecretToken: null,
   tracks: [],
   tracksNextOffset: null,
@@ -5887,7 +5888,7 @@ const ensureSoundCloudPlaylistApiAvailable = async () => {
 };
 
 const fetchSoundCloudLibraryPage = async (ownedOffset, likedOffset) => {
-  const path = `/api/soundcloud/playlists?ownedLimit=30&ownedOffset=${ownedOffset}&likedLimit=30&likedOffset=${likedOffset}`;
+  const path = `/api/soundcloud/playlists?ownedLimit=30&ownedOffset=${ownedOffset}&likedLimit=30&likedOffset=${likedOffset}&fetchSongCounts=true`;
   const res = await apiFetch(path);
   if (!res.ok) {
     throw new Error(await formatSoundCloudPlaylistHttpError(res, "Could not load SoundCloud library"));
@@ -5895,8 +5896,11 @@ const fetchSoundCloudLibraryPage = async (ownedOffset, likedOffset) => {
   return res.json();
 };
 
-const fetchSoundCloudPlaylistTracksPage = async (playlistId, offset, secretToken) => {
+const fetchSoundCloudPlaylistTracksPage = async (playlistId, offset, secretToken, { edge } = {}) => {
   let path = `/api/soundcloud/playlists/${encodeURIComponent(playlistId)}/tracks?limit=50&offset=${offset}`;
+  if (edge) {
+    path += `&edge=${encodeURIComponent(edge)}`;
+  }
   if (secretToken) {
     path += `&secretToken=${encodeURIComponent(secretToken)}`;
   }
@@ -5986,7 +5990,8 @@ const renderSoundCloudLibraryRows = () => {
         (pl) =>
           void selectSoundCloudPlaylist(pl.id, pl.name, {
             secretToken: pl.secretToken,
-            trackCount: pl.trackCount
+            trackCount: pl.trackCount,
+            kind: "likes"
           })
       );
     }
@@ -6001,7 +6006,8 @@ const renderSoundCloudLibraryRows = () => {
         (p) =>
           void selectSoundCloudPlaylist(p.id, p.name, {
             secretToken: p.secretToken,
-            trackCount: p.trackCount
+            trackCount: p.trackCount,
+            kind: "owned"
           })
       );
     });
@@ -6016,7 +6022,8 @@ const renderSoundCloudLibraryRows = () => {
         (p) =>
           void selectSoundCloudPlaylist(p.id, p.name, {
             secretToken: p.secretToken,
-            trackCount: p.trackCount
+            trackCount: p.trackCount,
+            kind: "liked_playlist"
           })
       );
     });
@@ -6161,15 +6168,17 @@ const loadMoreSoundCloudLikedPlaylists = async () => {
   }
 };
 
-const selectSoundCloudPlaylist = async (playlistId, playlistName, { secretToken, trackCount } = {}) => {
+const selectSoundCloudPlaylist = async (playlistId, playlistName, { secretToken, trackCount, kind: kindOpt } = {}) => {
   if (!soundcloudPlaylistTracksPanel || !soundcloudSelectedPlaylistTitle || !soundcloudPlaylistTracks) {
     return;
   }
   bumpSoundCloudPlaylistTracksLoadGeneration();
   clearSoundCloudPlaylistTrackFilter();
-  const kind = playlistId === SOUNDCLOUD_LIKES_PLAYLIST_ID ? "likes" : "owned";
+  const kind =
+    kindOpt || (playlistId === SOUNDCLOUD_LIKES_PLAYLIST_ID ? "likes" : "owned");
   soundcloudPlaylistBrowser.selectedId = playlistId;
   soundcloudPlaylistBrowser.selectedTitle = playlistName || "";
+  soundcloudPlaylistBrowser.selectedPlaylistKind = kind;
   soundcloudPlaylistBrowser.selectedSecretToken = secretToken || null;
   soundcloudPlaylistBrowser.tracks = [];
   soundcloudPlaylistBrowser.tracksNextOffset = null;
@@ -6186,20 +6195,48 @@ const selectSoundCloudPlaylist = async (playlistId, playlistName, { secretToken,
   const loadGeneration = soundcloudPlaylistTracksLoadGeneration;
   try {
     const fetchParams = resolveNewestFirstFetchParamsFn({ kind, trackCount });
-    const data = await fetchSoundCloudPlaylistTracksPage(
+    const fetchOpts = fetchParams.useEdge ? { edge: "newest" } : {};
+    let data = await fetchSoundCloudPlaylistTracksPage(
       playlistId,
       fetchParams.offset,
-      soundcloudPlaylistBrowser.selectedSecretToken
+      soundcloudPlaylistBrowser.selectedSecretToken,
+      fetchOpts
     );
     if (loadGeneration !== soundcloudPlaylistTracksLoadGeneration) return;
     if (typeof data.pageOffset !== "number") {
       data.pageOffset = fetchParams.offset;
     }
     if (data.tracksOlderOffset === undefined) {
-      if (kind === "likes") {
-        data.tracksOlderOffset = data.nextOffset ?? null;
-      } else {
-        data.tracksOlderOffset = fetchParams.tracksOlderOffset ?? null;
+      data.tracksOlderOffset = fetchParams.tracksOlderOffset ?? null;
+    }
+    const collectionTotal = data.collectionTotal ?? data.total;
+    const shouldRefetchTail = playlistTrackDisplayApi?.shouldRefetchNewestTailPage
+      ? playlistTrackDisplayApi.shouldRefetchNewestTailPage({
+          kind,
+          trackSortMode: soundcloudPlaylistBrowser.trackSortMode,
+          initialOffset: fetchParams.offset,
+          pageOffset: data.pageOffset,
+          collectionTotal
+        })
+      : kind === "likes" &&
+        soundcloudPlaylistBrowser.trackSortMode === "newest" &&
+        fetchParams.offset === 0 &&
+        (data.pageOffset ?? 0) === 0 &&
+        typeof collectionTotal === "number" &&
+        collectionTotal > 50;
+    if (shouldRefetchTail) {
+      const tailParams = resolveNewestFirstFetchParamsFn({
+        kind,
+        trackCount: collectionTotal
+      });
+      if (tailParams.offset > 0) {
+        data = await fetchSoundCloudPlaylistTracksPage(
+          playlistId,
+          tailParams.offset,
+          soundcloudPlaylistBrowser.selectedSecretToken
+        );
+        data.pageOffset = tailParams.offset;
+        data.tracksOlderOffset = tailParams.tracksOlderOffset ?? null;
       }
     }
     applyPlaylistTracksPageToBrowser(soundcloudPlaylistBrowser, data);
@@ -6239,9 +6276,6 @@ const loadMoreSoundCloudPlaylistTracks = async () => {
       data.tracksOlderOffset =
         playlistTrackDisplayApi?.computeTracksOlderOffset?.(loadOffset) ??
         (loadOffset > 0 ? Math.max(loadOffset - 50, 0) : null);
-      if (browser.selectedId === SOUNDCLOUD_LIKES_PLAYLIST_ID) {
-        data.tracksOlderOffset = data.nextOffset ?? null;
-      }
     }
     applyPlaylistTracksPageToBrowser(browser, data, { append: true });
     renderSoundCloudPlaylistTracks();

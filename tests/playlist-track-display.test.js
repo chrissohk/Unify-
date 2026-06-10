@@ -8,7 +8,8 @@ const {
   isSpotifyFollowedPlaylistSelection,
   computeTailPageOffset,
   computeTracksOlderOffset,
-  resolveNewestFirstFetchParams
+  resolveNewestFirstFetchParams,
+  shouldRefetchNewestTailPage
 } = require("../lib/playlistTrackDisplay.js");
 
 const pageOne = [
@@ -73,6 +74,53 @@ test("resolveNewestFirstFetchParams uses offset 0 for liked songs", () => {
     tracksOlderOffset: null,
     useEdge: true
   });
+});
+
+test("resolveNewestFirstFetchParams uses tail offset for SoundCloud likes", () => {
+  assert.deepEqual(resolveNewestFirstFetchParams({ kind: "likes", trackCount: 400 }), {
+    offset: 350,
+    tracksOlderOffset: 300,
+    useEdge: false
+  });
+});
+
+test("shouldRefetchNewestTailPage when likes opened without count but collectionTotal known", () => {
+  assert.equal(
+    shouldRefetchNewestTailPage({
+      kind: "likes",
+      trackSortMode: "newest",
+      initialOffset: 0,
+      pageOffset: 0,
+      collectionTotal: 120
+    }),
+    true
+  );
+});
+
+test("shouldRefetchNewestTailPage false when server already returned tail page", () => {
+  assert.equal(
+    shouldRefetchNewestTailPage({
+      kind: "likes",
+      trackSortMode: "newest",
+      initialOffset: 0,
+      pageOffset: 100,
+      collectionTotal: 120
+    }),
+    false
+  );
+});
+
+test("shouldRefetchNewestTailPage false for owned playlists", () => {
+  assert.equal(
+    shouldRefetchNewestTailPage({
+      kind: "owned",
+      trackSortMode: "newest",
+      initialOffset: 0,
+      pageOffset: 0,
+      collectionTotal: 120
+    }),
+    false
+  );
 });
 
 test("getDisplayedPlaylistTracks sorts paginated first page by newest", () => {

@@ -182,6 +182,34 @@ test("normalizePlaylistTrackRow drops tracks without permalink", () => {
   );
 });
 
+test("normalizePlaylistTrackRow omits addedAt for bare playlist tracks", () => {
+  const out = normalizePlaylistTrackRow({
+    id: 3,
+    title: "In Set",
+    duration: 120000,
+    created_at: "2010-01-01T00:00:00.000Z",
+    permalink_url: "https://soundcloud.com/a/in-set",
+    user: { username: "A" }
+  });
+  assert.equal(out.id, "3");
+  assert.equal(out.addedAt, undefined);
+});
+
+test("normalizePlaylistTrackRow keeps addedAt on wrapped rows", () => {
+  const out = normalizePlaylistTrackRow({
+    created_at: "2024-03-15T12:00:00.000Z",
+    track: {
+      id: 9,
+      title: "Wrapped",
+      duration: 90000,
+      permalink_url: "https://soundcloud.com/a/wrapped",
+      user: { username: "A" }
+    }
+  });
+  assert.equal(out.id, "9");
+  assert.equal(out.addedAt, "2024-03-15T12:00:00.000Z");
+});
+
 test("soundCloudListLibrary merges likes, owned, and liked playlists", async () => {
   const originalFetch = global.fetch;
   global.fetch = async (url) => {
@@ -577,6 +605,124 @@ test("GET /api/soundcloud/playlists does not fetch likes track pages by default"
   const res = await request(app).get("/api/soundcloud/playlists").expect(200);
   assert.equal(res.body.demoMode, true);
   assert.equal(res.body.likes.trackCount, undefined);
+});
+
+test("soundCloudListLibrary with fetchSongCounts reads likes trackCount from total_count", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes("/me/likes/tracks")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          collection: [mockLikedTrack(1)],
+          total_count: 215,
+          next_href: null
+        })
+      };
+    }
+    if (u.includes("/me/playlists") && !u.includes("/me/likes/playlists")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ collection: [], next_href: null })
+      };
+    }
+    if (u.includes("/me/likes/playlists")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ collection: [], next_href: null })
+      };
+    }
+    throw new Error(`unexpected fetch: ${u}`);
+  };
+  try {
+    const r = await soundCloudListLibrary({
+      accessToken: "tok",
+      ownedLimit: 30,
+      ownedOffset: 0,
+      likedLimit: 30,
+      likedOffset: 0,
+      fetchSongCounts: true,
+      enrichTrackCounts: false
+    });
+    assert.equal(r.ok, true);
+    assert.equal(r.likes.trackCount, 215);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("soundCloudListPlaylistTracksById fetches likes tail page when offset is at collection end", async () => {
+  const originalFetch = global.fetch;
+  let likesPage = 0;
+  global.fetch = async (url) => {
+    const u = String(url);
+    if (!u.includes("/me/likes/tracks")) {
+      throw new Error(`unexpected fetch: ${u}`);
+    }
+    likesPage += 1;
+    if (likesPage === 1) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          collection: Array.from({ length: 50 }, (_, i) => mockLikedTrack(1000 + i)),
+          total_count: 120,
+          next_href: "https://api.soundcloud.com/me/likes/tracks?page=2"
+        })
+      };
+    }
+    if (likesPage === 2) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          collection: Array.from({ length: 50 }, (_, i) => mockLikedTrack(2000 + i)),
+          total_count: 120,
+          next_href: "https://api.soundcloud.com/me/likes/tracks?page=3"
+        })
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        collection: Array.from({ length: 20 }, (_, i) => mockLikedTrack(3000 + i)),
+        total_count: 120,
+        next_href: null
+      })
+    };
+  };
+  try {
+    const r = await soundCloudListPlaylistTracksById({
+      accessToken: "tok",
+      playlistId: SOUNDCLOUD_LIKES_ID,
+      limit: 50,
+      offset: 100
+    });
+    assert.equal(r.ok, true);
+    assert.equal(r.collectionTotal, 120);
+    assert.equal(r.results.length, 20);
+    assert.equal(r.results[0].id, "3000");
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("GET /api/soundcloud/playlists/:id/tracks edge=newest uses tail offset in demo mode", async () => {
+  await request(app).post("/api/auth/soundcloud/connect").expect(200);
+  const res = await request(app)
+    .get(
+      `/api/soundcloud/playlists/${encodeURIComponent(SOUNDCLOUD_LIKES_ID)}/tracks?limit=50&offset=0&edge=newest`
+    )
+    .expect(200);
+  assert.equal(res.body.demoMode, true);
+  assert.ok(Array.isArray(res.body.results));
+  assert.equal(typeof res.body.pageOffset, "number");
+  assert.equal(typeof res.body.collectionTotal, "number");
 });
 
 test("GET /api/soundcloud/playlists/:id/tracks demo vs unknown id", async () => {

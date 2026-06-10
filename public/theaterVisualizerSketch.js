@@ -2,7 +2,7 @@
 
 /**
  * Theater audio visualizer sketch — ported from amandayehh/audio-visualizer (GPL-3.0).
- * Uses tab-capture MediaStream instead of dropped audio files.
+ * Uses microphone MediaStream instead of dropped audio files.
  */
 
 (function () {
@@ -74,11 +74,11 @@
         tap.gain.value = 1;
         mediaSource.connect(tap);
 
-        fft = new p.FFT(0, 1024);
+        fft = new p5.FFT(0, 1024);
         fft.setInput(tap);
-        amplitude = new p.Amplitude();
+        amplitude = new p5.Amplitude();
         amplitude.setInput(tap);
-        peakDetect = new p.PeakDetect();
+        peakDetect = new p5.PeakDetect();
         resetSketchState();
       };
 

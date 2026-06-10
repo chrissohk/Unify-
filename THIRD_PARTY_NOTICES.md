@@ -14,6 +14,6 @@ This project incorporates GPL-3.0 licensed components. See [LICENSE](LICENSE).
 - **License:** LGPL-2.1 (p5.js core); see upstream for p5.sound
 - **Use:** Vendored in `public/vendor/p5.min.js` and `public/vendor/p5.sound.min.js`
 
-## Tab audio capture
+## Microphone audio capture
 
-Theater visuals use `navigator.mediaDevices.getDisplayMedia` to analyze audio from the current browser tab. Browser support and behavior vary (especially Safari). Users must explicitly grant permission each session.
+Theater visuals use `navigator.mediaDevices.getUserMedia` to analyze audio from the device microphone (what is playing through speakers or headphones). Browser support and behavior vary. Users must explicitly grant microphone permission each session. Headphones are recommended to reduce feedback.

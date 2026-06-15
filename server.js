@@ -1247,17 +1247,22 @@ app.get("/api/soundcloud/playlists/:playlistId/tracks", async (req, res) => {
     return res.status(401).json({ error: connectCheck.message, code: connectCheck.code });
   }
 
+  const limit = Math.min(Number(req.query.limit || 50) || 50, 50);
+  const offset = Math.max(Number(req.query.offset || 0) || 0, 0);
   const secretToken = (req.query.secretToken || "").toString().trim() || undefined;
 
   const tokenResult = await getSoundCloudAccessToken({ sessions, persist });
   if (!tokenResult.ok) {
     const mockTracks = mockSoundCloudPlaylistTracks(playlistId);
     if (soundCloudTokenAllowsMockCatalog(tokenResult) && mockTracks) {
+      const total = mockTracks.length;
+      const pageEnd = Math.min(offset + limit, total);
+      const slice = mockTracks.slice(offset, pageEnd);
       return res.json({
-        results: mockTracks,
-        nextOffset: null,
-        pageOffset: 0,
-        collectionTotal: mockTracks.length,
+        results: slice,
+        nextOffset: pageEnd < total ? pageEnd : null,
+        pageOffset: offset,
+        collectionTotal: total,
         tracksOlderOffset: null,
         demoMode: true
       });
@@ -1280,7 +1285,9 @@ app.get("/api/soundcloud/playlists/:playlistId/tracks", async (req, res) => {
   let liveResult = await soundCloudListPlaylistTracksById({
     accessToken,
     playlistId,
-    secretToken
+    secretToken,
+    limit,
+    offset
   });
 
   if (!liveResult.ok && liveResult.status === 401) {
@@ -1294,7 +1301,9 @@ app.get("/api/soundcloud/playlists/:playlistId/tracks", async (req, res) => {
     liveResult = await soundCloudListPlaylistTracksById({
       accessToken: refreshResult.accessToken,
       playlistId,
-      secretToken
+      secretToken,
+      limit,
+      offset
     });
   }
 
@@ -1307,7 +1316,7 @@ app.get("/api/soundcloud/playlists/:playlistId/tracks", async (req, res) => {
   return res.json({
     results: liveResult.results || [],
     nextOffset: liveResult.nextOffset ?? null,
-    pageOffset: 0,
+    pageOffset: offset,
     collectionTotal,
     total: collectionTotal,
     tracksOlderOffset: null,

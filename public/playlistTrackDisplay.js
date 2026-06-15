@@ -12,12 +12,6 @@ function normalizePlaylistTrackSortMode(mode) {
   return "newest";
 }
 
-function normalizeSoundCloudPlaylistTrackSortMode(mode) {
-  if (mode === "oldest") return "oldest";
-  if (mode === "newest") return "newest";
-  return "default";
-}
-
 function isSpotifyFollowedPlaylistSelection(browser) {
   return browser?.selectedPlaylistKind === "liked_playlist";
 }
@@ -95,14 +89,6 @@ function getDisplayedPlaylistTracks(browser) {
   const tracks = Array.isArray(browser?.tracks) ? browser.tracks : [];
   const filtered = filterFn ? filterFn(tracks, browser?.trackFilterQuery) : tracks;
   if (browser?.playlistBrowseProvider === "soundcloud") {
-    const mode = normalizeSoundCloudPlaylistTrackSortMode(browser?.trackSortMode);
-    const sortApi = window.SortPlaylistTracks;
-    if (mode === "newest" && sortApi?.sortTracksByCreatedAt) {
-      return sortApi.sortTracksByCreatedAt(filtered, "newest");
-    }
-    if (mode === "oldest" && sortApi?.sortTracksByCreatedAt) {
-      return sortApi.sortTracksByCreatedAt(filtered, "oldest");
-    }
     return filtered;
   }
   const mode = normalizePlaylistTrackSortMode(browser?.trackSortMode);
@@ -117,7 +103,6 @@ function getDisplayedPlaylistTracks(browser) {
 
 const api = {
   normalizePlaylistTrackSortMode,
-  normalizeSoundCloudPlaylistTrackSortMode,
   isSpotifyFollowedPlaylistSelection,
   isSpotifyLikedSongsSelection,
   isPlaylistOrderOnlyPlaylist,

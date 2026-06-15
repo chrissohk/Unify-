@@ -563,17 +563,6 @@ test("soundCloudListPlaylistTracksById fetches playlist tracks by id", async () 
   const originalFetch = global.fetch;
   global.fetch = async (url) => {
     const u = String(url);
-    if (u.includes("/playlists/55") && !u.includes("/tracks")) {
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          id: 55,
-          track_order: [3],
-          tracks: [{ id: 3 }]
-        })
-      };
-    }
     if (u.includes("/playlists/55/tracks")) {
       return {
         ok: true,
@@ -687,53 +676,43 @@ test("soundCloudListLibrary with fetchSongCounts reads likes trackCount from tot
   }
 });
 
-test("soundCloudListPlaylistTracksById applies track_order for owned playlists", async () => {
+test("soundCloudListPlaylistTracksById returns playlist tracks in API page order", async () => {
   const originalFetch = global.fetch;
   global.fetch = async (url) => {
     const u = String(url);
-    if (u.includes("/playlists/77") && !u.includes("/tracks")) {
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          id: 77,
-          track_order: [102, 101, 100]
-        })
-      };
+    if (!u.includes("/playlists/77/tracks")) {
+      throw new Error(`unexpected fetch: ${u}`);
     }
-    if (u.includes("/playlists/77/tracks")) {
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          collection: [
-            {
-              id: 100,
-              title: "Third",
-              duration: 120000,
-              permalink_url: "https://soundcloud.com/a/third",
-              user: { username: "A" }
-            },
-            {
-              id: 101,
-              title: "Second",
-              duration: 120000,
-              permalink_url: "https://soundcloud.com/a/second",
-              user: { username: "A" }
-            },
-            {
-              id: 102,
-              title: "First",
-              duration: 120000,
-              permalink_url: "https://soundcloud.com/a/first",
-              user: { username: "A" }
-            }
-          ],
-          next_href: null
-        })
-      };
-    }
-    throw new Error(`unexpected fetch: ${u}`);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        collection: [
+          {
+            id: 100,
+            title: "Third",
+            duration: 120000,
+            permalink_url: "https://soundcloud.com/a/third",
+            user: { username: "A" }
+          },
+          {
+            id: 101,
+            title: "Second",
+            duration: 120000,
+            permalink_url: "https://soundcloud.com/a/second",
+            user: { username: "A" }
+          },
+          {
+            id: 102,
+            title: "First",
+            duration: 120000,
+            permalink_url: "https://soundcloud.com/a/first",
+            user: { username: "A" }
+          }
+        ],
+        next_href: null
+      })
+    };
   };
   try {
     const r = await soundCloudListPlaylistTracksById({
@@ -745,14 +724,14 @@ test("soundCloudListPlaylistTracksById applies track_order for owned playlists",
     assert.equal(r.ok, true);
     assert.deepEqual(
       r.results.map((t) => t.id),
-      ["102", "101", "100"]
+      ["100", "101", "102"]
     );
   } finally {
     global.fetch = originalFetch;
   }
 });
 
-test("soundCloudListPlaylistTracksById loads all likes pages in API order", async () => {
+test("soundCloudListPlaylistTracksById paginates likes", async () => {
   const originalFetch = global.fetch;
   let likesPage = 0;
   const tsFor = (page, i) => new Date(Date.UTC(2024, page - 1, 1, 0, i, 0)).toISOString();
@@ -760,6 +739,9 @@ test("soundCloudListPlaylistTracksById loads all likes pages in API order", asyn
     const u = String(url);
     if (!u.includes("/me/likes/tracks")) {
       throw new Error(`unexpected fetch: ${u}`);
+    }
+    if (!u.includes("page=")) {
+      likesPage = 0;
     }
     likesPage += 1;
     if (likesPage === 1) {
@@ -801,25 +783,45 @@ test("soundCloudListPlaylistTracksById loads all likes pages in API order", asyn
     };
   };
   try {
-    const r = await soundCloudListPlaylistTracksById({
+    const first = await soundCloudListPlaylistTracksById({
+      accessToken: "tok",
+      playlistId: SOUNDCLOUD_LIKES_ID,
+      limit: 50,
+      offset: 0
+    });
+    assert.equal(first.ok, true);
+    assert.equal(first.results.length, 50);
+    assert.equal(first.nextOffset, 50);
+    assert.equal(first.collectionTotal, 120);
+    assert.equal(first.results[0].id, "1000");
+
+    const second = await soundCloudListPlaylistTracksById({
+      accessToken: "tok",
+      playlistId: SOUNDCLOUD_LIKES_ID,
+      limit: 50,
+      offset: 50
+    });
+    assert.equal(second.ok, true);
+    assert.equal(second.results.length, 50);
+    assert.equal(second.nextOffset, 100);
+    assert.equal(second.results[0].id, "2000");
+
+    const third = await soundCloudListPlaylistTracksById({
       accessToken: "tok",
       playlistId: SOUNDCLOUD_LIKES_ID,
       limit: 50,
       offset: 100
     });
-    assert.equal(r.ok, true);
-    assert.equal(likesPage, 3);
-    assert.equal(r.collectionTotal, 120);
-    assert.equal(r.results.length, 120);
-    assert.equal(r.nextOffset, null);
-    assert.equal(r.results[0].id, "1000");
-    assert.equal(r.results[r.results.length - 1].id, "3019");
+    assert.equal(third.ok, true);
+    assert.equal(third.results.length, 20);
+    assert.equal(third.nextOffset, null);
+    assert.equal(third.results[0].id, "3000");
   } finally {
     global.fetch = originalFetch;
   }
 });
 
-test("GET /api/soundcloud/playlists/:id/tracks returns full list in catalog order", async () => {
+test("GET /api/soundcloud/playlists/:id/tracks returns first page in catalog order", async () => {
   await request(app).post("/api/auth/soundcloud/connect").expect(200);
   const res = await request(app)
     .get(

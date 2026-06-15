@@ -971,7 +971,7 @@ let soundcloudPlaylistBrowser = {
   tracksLoadDirection: "newest",
   libraryFilterQuery: "",
   trackFilterQuery: "",
-  trackSortMode: "newest"
+  trackSortMode: "default"
 };
 let spotifyPlaylistTracksLoadGeneration = 0;
 let soundcloudPlaylistTracksLoadGeneration = 0;
@@ -5134,7 +5134,18 @@ const normalizePlaylistTrackSortMode = (mode) =>
     ? playlistTrackDisplayApi.normalizePlaylistTrackSortMode(mode)
     : mode === "oldest"
       ? "oldest"
-      : "newest";
+      : mode === "default"
+        ? "default"
+        : "newest";
+
+const normalizeSoundCloudPlaylistTrackSortMode = (mode) =>
+  playlistTrackDisplayApi?.normalizeSoundCloudPlaylistTrackSortMode
+    ? playlistTrackDisplayApi.normalizeSoundCloudPlaylistTrackSortMode(mode)
+    : mode === "oldest"
+      ? "oldest"
+      : mode === "newest"
+        ? "newest"
+        : "default";
 
 const isSpotifyFollowedPlaylistSelection = (browser) =>
   playlistTrackDisplayApi?.isSpotifyFollowedPlaylistSelection
@@ -5266,8 +5277,8 @@ const resetSpotifyPlaylistTrackSort = () => {
 };
 
 const resetSoundCloudPlaylistTrackSort = () => {
-  soundcloudPlaylistBrowser.trackSortMode = "newest";
-  syncPlaylistTrackSortUi(soundcloudPlaylistTrackSort, "newest");
+  soundcloudPlaylistBrowser.trackSortMode = "default";
+  syncPlaylistTrackSortUi(soundcloudPlaylistTrackSort, "default");
 };
 
 const ensureAllSpotifyPlaylistTracksLoaded = async ({ loadGeneration, onProgress } = {}) => {
@@ -5421,7 +5432,7 @@ const setSpotifyPlaylistTrackSort = async (mode) => {
 };
 
 const setSoundCloudPlaylistTrackSort = async (mode) => {
-  const nextMode = normalizePlaylistTrackSortMode(mode);
+  const nextMode = normalizeSoundCloudPlaylistTrackSortMode(mode);
   if (
     nextMode === soundcloudPlaylistBrowser.trackSortMode &&
     !playlistSortNeedsBulkFetch(soundcloudPlaylistBrowser, nextMode)

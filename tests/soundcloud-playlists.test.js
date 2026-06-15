@@ -9,6 +9,8 @@ const {
   normalizePlaylistSummary,
   normalizeLikedTrackRow,
   normalizePlaylistTrackRow,
+  extractPlaylistTrackOrder,
+  orderTracksByIdList,
   soundCloudFetchLikesSummary,
   soundCloudListLikedTracks,
   soundCloudListLibrary,
@@ -538,10 +540,40 @@ test("soundCloudListPlaylistTracksById routes __likes__ to liked tracks", async 
   }
 });
 
+test("extractPlaylistTrackOrder prefers track_order over tracks array", () => {
+  assert.deepEqual(
+    extractPlaylistTrackOrder({
+      track_order: [3, 1, 2],
+      tracks: [{ id: 1 }, { id: 2 }, { id: 3 }]
+    }),
+    ["3", "1", "2"]
+  );
+});
+
+test("orderTracksByIdList reorders tracks and appends orphans", () => {
+  const tracks = [
+    { id: "2", title: "B" },
+    { id: "1", title: "A" },
+    { id: "3", title: "C" }
+  ];
+  assert.deepEqual(orderTracksByIdList(tracks, ["1", "2"]).map((t) => t.id), ["1", "2", "3"]);
+});
+
 test("soundCloudListPlaylistTracksById fetches playlist tracks by id", async () => {
   const originalFetch = global.fetch;
   global.fetch = async (url) => {
     const u = String(url);
+    if (u.includes("/playlists/55") && !u.includes("/tracks")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: 55,
+          track_order: [3],
+          tracks: [{ id: 3 }]
+        })
+      };
+    }
     if (u.includes("/playlists/55/tracks")) {
       return {
         ok: true,
@@ -655,7 +687,72 @@ test("soundCloudListLibrary with fetchSongCounts reads likes trackCount from tot
   }
 });
 
-test("soundCloudListPlaylistTracksById loads all likes pages and sorts by created_at newest first", async () => {
+test("soundCloudListPlaylistTracksById applies track_order for owned playlists", async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes("/playlists/77") && !u.includes("/tracks")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: 77,
+          track_order: [102, 101, 100]
+        })
+      };
+    }
+    if (u.includes("/playlists/77/tracks")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          collection: [
+            {
+              id: 100,
+              title: "Third",
+              duration: 120000,
+              permalink_url: "https://soundcloud.com/a/third",
+              user: { username: "A" }
+            },
+            {
+              id: 101,
+              title: "Second",
+              duration: 120000,
+              permalink_url: "https://soundcloud.com/a/second",
+              user: { username: "A" }
+            },
+            {
+              id: 102,
+              title: "First",
+              duration: 120000,
+              permalink_url: "https://soundcloud.com/a/first",
+              user: { username: "A" }
+            }
+          ],
+          next_href: null
+        })
+      };
+    }
+    throw new Error(`unexpected fetch: ${u}`);
+  };
+  try {
+    const r = await soundCloudListPlaylistTracksById({
+      accessToken: "tok",
+      playlistId: "77",
+      limit: 50,
+      offset: 0
+    });
+    assert.equal(r.ok, true);
+    assert.deepEqual(
+      r.results.map((t) => t.id),
+      ["102", "101", "100"]
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("soundCloudListPlaylistTracksById loads all likes pages in API order", async () => {
   const originalFetch = global.fetch;
   let likesPage = 0;
   const tsFor = (page, i) => new Date(Date.UTC(2024, page - 1, 1, 0, i, 0)).toISOString();
@@ -715,16 +812,14 @@ test("soundCloudListPlaylistTracksById loads all likes pages and sorts by create
     assert.equal(r.collectionTotal, 120);
     assert.equal(r.results.length, 120);
     assert.equal(r.nextOffset, null);
-    assert.equal(r.results[0].id, "3019");
-    assert.equal(r.results[0].addedAt, tsFor(3, 19));
-    assert.equal(r.results[r.results.length - 1].id, "1000");
-    assert.equal(r.results[r.results.length - 1].addedAt, tsFor(1, 0));
+    assert.equal(r.results[0].id, "1000");
+    assert.equal(r.results[r.results.length - 1].id, "3019");
   } finally {
     global.fetch = originalFetch;
   }
 });
 
-test("GET /api/soundcloud/playlists/:id/tracks returns full sorted list with nextOffset null", async () => {
+test("GET /api/soundcloud/playlists/:id/tracks returns full list in catalog order", async () => {
   await request(app).post("/api/auth/soundcloud/connect").expect(200);
   const res = await request(app)
     .get(
@@ -737,10 +832,10 @@ test("GET /api/soundcloud/playlists/:id/tracks returns full sorted list with nex
   assert.equal(res.body.nextOffset, null);
   assert.equal(res.body.tracksOlderOffset, null);
   assert.equal(typeof res.body.collectionTotal, "number");
-  const addedAts = res.body.results.map((t) => t.addedAt).filter(Boolean);
-  for (let i = 1; i < addedAts.length; i += 1) {
-    assert.ok(Date.parse(addedAts[i - 1]) >= Date.parse(addedAts[i]));
-  }
+  assert.deepEqual(
+    res.body.results.map((t) => t.id),
+    ["sc-1", "sc-2", "sc-3"]
+  );
 });
 
 test("soundCloudListLikedTracks does not narrow access to playable only", async () => {

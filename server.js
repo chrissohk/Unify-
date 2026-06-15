@@ -53,7 +53,6 @@ const {
   soundCloudFetchLikesSummary,
   SOUNDCLOUD_LIKES_ID
 } = require("./lib/soundcloudWebApi");
-const { sortTracksByCreatedAt } = require("./lib/sortPlaylistTracks");
 const { resolveProviderHealth } = require("./lib/providerHealth");
 const { isAppleMusicConfigured, appleMusicSetupHint } = require("./lib/appleMusicConfig");
 const {
@@ -1254,12 +1253,11 @@ app.get("/api/soundcloud/playlists/:playlistId/tracks", async (req, res) => {
   if (!tokenResult.ok) {
     const mockTracks = mockSoundCloudPlaylistTracks(playlistId);
     if (soundCloudTokenAllowsMockCatalog(tokenResult) && mockTracks) {
-      const sorted = sortTracksByCreatedAt(mockTracks, "newest");
       return res.json({
-        results: sorted,
+        results: mockTracks,
         nextOffset: null,
         pageOffset: 0,
-        collectionTotal: sorted.length,
+        collectionTotal: mockTracks.length,
         tracksOlderOffset: null,
         demoMode: true
       });

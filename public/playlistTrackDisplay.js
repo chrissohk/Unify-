@@ -6,7 +6,16 @@
  */
 
 function normalizePlaylistTrackSortMode(mode) {
-  return mode === "oldest" ? "oldest" : "newest";
+  if (mode === "oldest") return "oldest";
+  if (mode === "newest") return "newest";
+  if (mode === "default") return "default";
+  return "newest";
+}
+
+function normalizeSoundCloudPlaylistTrackSortMode(mode) {
+  if (mode === "oldest") return "oldest";
+  if (mode === "newest") return "newest";
+  return "default";
 }
 
 function isSpotifyFollowedPlaylistSelection(browser) {
@@ -85,11 +94,18 @@ function getDisplayedPlaylistTracks(browser) {
   const filterFn = window.FilterPlaylistTracks?.filterPlaylistTracks;
   const tracks = Array.isArray(browser?.tracks) ? browser.tracks : [];
   const filtered = filterFn ? filterFn(tracks, browser?.trackFilterQuery) : tracks;
-  const mode = normalizePlaylistTrackSortMode(browser?.trackSortMode);
   if (browser?.playlistBrowseProvider === "soundcloud") {
-    if (mode === "oldest") return [...filtered].reverse();
+    const mode = normalizeSoundCloudPlaylistTrackSortMode(browser?.trackSortMode);
+    const sortApi = window.SortPlaylistTracks;
+    if (mode === "newest" && sortApi?.sortTracksByCreatedAt) {
+      return sortApi.sortTracksByCreatedAt(filtered, "newest");
+    }
+    if (mode === "oldest" && sortApi?.sortTracksByCreatedAt) {
+      return sortApi.sortTracksByCreatedAt(filtered, "oldest");
+    }
     return filtered;
   }
+  const mode = normalizePlaylistTrackSortMode(browser?.trackSortMode);
   const sortApi = window.SortPlaylistTracks;
   if (shouldUsePlaylistOrderSort(browser)) {
     return sortApi?.sortPlaylistTracksByPlaylistOrder
@@ -101,6 +117,7 @@ function getDisplayedPlaylistTracks(browser) {
 
 const api = {
   normalizePlaylistTrackSortMode,
+  normalizeSoundCloudPlaylistTrackSortMode,
   isSpotifyFollowedPlaylistSelection,
   isSpotifyLikedSongsSelection,
   isPlaylistOrderOnlyPlaylist,

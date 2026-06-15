@@ -203,7 +203,21 @@ const soundcloudLikesNewestFirstFixture = [
   { id: "baby", addedAt: "2024-06-01T00:00:00.000Z", playlistPosition: 3 }
 ];
 
-test("getDisplayedPlaylistTracks preserves API order for SoundCloud likes newest", () => {
+test("getDisplayedPlaylistTracks preserves API order for SoundCloud likes in default mode", () => {
+  const browser = {
+    playlistBrowseProvider: "soundcloud",
+    selectedPlaylistKind: "likes",
+    tracks: soundcloudLikesNewestFirstFixture,
+    trackFilterQuery: "",
+    trackSortMode: "default"
+  };
+  assert.deepEqual(
+    getDisplayedPlaylistTracks(browser).map((t) => t.id),
+    ["don1", "don2", "ralph", "baby"]
+  );
+});
+
+test("getDisplayedPlaylistTracks sorts SoundCloud likes by addedAt newest", () => {
   const browser = {
     playlistBrowseProvider: "soundcloud",
     selectedPlaylistKind: "likes",
@@ -217,7 +231,7 @@ test("getDisplayedPlaylistTracks preserves API order for SoundCloud likes newest
   );
 });
 
-test("getDisplayedPlaylistTracks sorts SoundCloud likes by playlistPosition oldest", () => {
+test("getDisplayedPlaylistTracks sorts SoundCloud likes by addedAt oldest", () => {
   const browser = {
     playlistBrowseProvider: "soundcloud",
     selectedPlaylistKind: "likes",
@@ -237,13 +251,13 @@ const soundcloudOwnedFixture = [
   { id: "t101", addedAt: "2024-06-01T00:00:00.000Z", playlistPosition: 101 }
 ];
 
-test("getDisplayedPlaylistTracks preserves fetch order for SoundCloud owned playlists newest", () => {
+test("getDisplayedPlaylistTracks preserves fetch order for SoundCloud owned playlists in default mode", () => {
   const browser = {
     playlistBrowseProvider: "soundcloud",
     selectedPlaylistKind: "owned",
     tracks: soundcloudOwnedFixture,
     trackFilterQuery: "",
-    trackSortMode: "newest"
+    trackSortMode: "default"
   };
   assert.deepEqual(
     getDisplayedPlaylistTracks(browser).map((t) => t.id),
@@ -251,7 +265,7 @@ test("getDisplayedPlaylistTracks preserves fetch order for SoundCloud owned play
   );
 });
 
-test("getDisplayedPlaylistTracks reverses fetch order for SoundCloud owned playlists oldest", () => {
+test("getDisplayedPlaylistTracks sorts SoundCloud owned playlists by addedAt oldest", () => {
   const browser = {
     playlistBrowseProvider: "soundcloud",
     selectedPlaylistKind: "owned",
@@ -262,5 +276,25 @@ test("getDisplayedPlaylistTracks reverses fetch order for SoundCloud owned playl
   assert.deepEqual(
     getDisplayedPlaylistTracks(browser).map((t) => t.id),
     ["t101", "t102", "t100"]
+  );
+});
+
+const soundcloudOrderVsDateFixture = [
+  { id: "first", addedAt: "2024-06-01T00:00:00.000Z", playlistPosition: 0 },
+  { id: "second", addedAt: "2024-06-03T00:00:00.000Z", playlistPosition: 1 },
+  { id: "third", addedAt: "2024-06-02T00:00:00.000Z", playlistPosition: 2 }
+];
+
+test("getDisplayedPlaylistTracks uses addedAt for SoundCloud newest not playlist order", () => {
+  const browser = {
+    playlistBrowseProvider: "soundcloud",
+    selectedPlaylistKind: "owned",
+    tracks: soundcloudOrderVsDateFixture,
+    trackFilterQuery: "",
+    trackSortMode: "newest"
+  };
+  assert.deepEqual(
+    getDisplayedPlaylistTracks(browser).map((t) => t.id),
+    ["second", "third", "first"]
   );
 });

@@ -18,8 +18,12 @@ const {
   summaryNeedsTrackCountEnrichment
 } = require("../lib/soundcloudWebApi");
 
-function mockLikedTrack(id) {
+function mockLikedTrack(id, createdAt) {
+  const ts =
+    createdAt ||
+    `2024-01-${String((Number(id) % 28) + 1).padStart(2, "0")}T12:00:00.000Z`;
   return {
+    created_at: ts,
     track: {
       id,
       title: `Like ${id}`,
@@ -177,7 +181,7 @@ test("normalizePlaylistTrackRow drops tracks without permalink", () => {
   );
 });
 
-test("normalizePlaylistTrackRow omits addedAt for bare playlist tracks", () => {
+test("normalizePlaylistTrackRow maps created_at to addedAt for bare playlist tracks", () => {
   const out = normalizePlaylistTrackRow({
     id: 3,
     title: "In Set",
@@ -187,7 +191,7 @@ test("normalizePlaylistTrackRow omits addedAt for bare playlist tracks", () => {
     user: { username: "A" }
   });
   assert.equal(out.id, "3");
-  assert.equal(out.addedAt, undefined);
+  assert.equal(out.addedAt, "2010-01-01T00:00:00.000Z");
 });
 
 test("normalizePlaylistTrackRow keeps addedAt on wrapped rows", () => {
@@ -651,9 +655,10 @@ test("soundCloudListLibrary with fetchSongCounts reads likes trackCount from tot
   }
 });
 
-test("soundCloudListPlaylistTracksById fetches likes tail page when offset is at collection end", async () => {
+test("soundCloudListPlaylistTracksById loads all likes pages and sorts by created_at newest first", async () => {
   const originalFetch = global.fetch;
   let likesPage = 0;
+  const tsFor = (page, i) => new Date(Date.UTC(2024, page - 1, 1, 0, i, 0)).toISOString();
   global.fetch = async (url) => {
     const u = String(url);
     if (!u.includes("/me/likes/tracks")) {
@@ -665,7 +670,9 @@ test("soundCloudListPlaylistTracksById fetches likes tail page when offset is at
         ok: true,
         status: 200,
         json: async () => ({
-          collection: Array.from({ length: 50 }, (_, i) => mockLikedTrack(1000 + i)),
+          collection: Array.from({ length: 50 }, (_, i) =>
+            mockLikedTrack(1000 + i, tsFor(1, i))
+          ),
           total_count: 120,
           next_href: "https://api.soundcloud.com/me/likes/tracks?page=2"
         })
@@ -676,7 +683,9 @@ test("soundCloudListPlaylistTracksById fetches likes tail page when offset is at
         ok: true,
         status: 200,
         json: async () => ({
-          collection: Array.from({ length: 50 }, (_, i) => mockLikedTrack(2000 + i)),
+          collection: Array.from({ length: 50 }, (_, i) =>
+            mockLikedTrack(2000 + i, tsFor(2, i))
+          ),
           total_count: 120,
           next_href: "https://api.soundcloud.com/me/likes/tracks?page=3"
         })
@@ -686,7 +695,9 @@ test("soundCloudListPlaylistTracksById fetches likes tail page when offset is at
       ok: true,
       status: 200,
       json: async () => ({
-        collection: Array.from({ length: 20 }, (_, i) => mockLikedTrack(3000 + i)),
+        collection: Array.from({ length: 20 }, (_, i) =>
+          mockLikedTrack(3000 + i, tsFor(3, i))
+        ),
         total_count: 120,
         next_href: null
       })
@@ -700,26 +711,36 @@ test("soundCloudListPlaylistTracksById fetches likes tail page when offset is at
       offset: 100
     });
     assert.equal(r.ok, true);
+    assert.equal(likesPage, 3);
     assert.equal(r.collectionTotal, 120);
-    assert.equal(r.results.length, 20);
-    assert.equal(r.results[0].id, "3000");
+    assert.equal(r.results.length, 120);
+    assert.equal(r.nextOffset, null);
+    assert.equal(r.results[0].id, "3019");
+    assert.equal(r.results[0].addedAt, tsFor(3, 19));
+    assert.equal(r.results[r.results.length - 1].id, "1000");
+    assert.equal(r.results[r.results.length - 1].addedAt, tsFor(1, 0));
   } finally {
     global.fetch = originalFetch;
   }
 });
 
-test("GET /api/soundcloud/playlists/:id/tracks edge=newest does not tail-fetch likes", async () => {
+test("GET /api/soundcloud/playlists/:id/tracks returns full sorted list with nextOffset null", async () => {
   await request(app).post("/api/auth/soundcloud/connect").expect(200);
   const res = await request(app)
     .get(
-      `/api/soundcloud/playlists/${encodeURIComponent(SOUNDCLOUD_LIKES_ID)}/tracks?limit=50&offset=0&edge=newest`
+      `/api/soundcloud/playlists/${encodeURIComponent(SOUNDCLOUD_LIKES_ID)}/tracks?limit=50&offset=0`
     )
     .expect(200);
   assert.equal(res.body.demoMode, true);
   assert.ok(Array.isArray(res.body.results));
   assert.equal(res.body.pageOffset, 0);
+  assert.equal(res.body.nextOffset, null);
   assert.equal(res.body.tracksOlderOffset, null);
   assert.equal(typeof res.body.collectionTotal, "number");
+  const addedAts = res.body.results.map((t) => t.addedAt).filter(Boolean);
+  for (let i = 1; i < addedAts.length; i += 1) {
+    assert.ok(Date.parse(addedAts[i - 1]) >= Date.parse(addedAts[i]));
+  }
 });
 
 test("soundCloudListLikedTracks does not narrow access to playable only", async () => {

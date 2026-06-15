@@ -76,10 +76,35 @@ function sortPlaylistTracksByCollectionOrder(tracks, mode, collectionOrder) {
     .map(({ track }) => track);
 }
 
+function sortTracksByCreatedAt(tracks, mode) {
+  const list = Array.isArray(tracks) ? tracks.slice() : [];
+  if (mode !== "newest" && mode !== "oldest") return list;
+
+  return list
+    .map((track, index) => ({
+      track,
+      index,
+      ts: parseAddedAtEpoch(track?.addedAt)
+    }))
+    .sort((a, b) => {
+      const aHas = a.ts !== null;
+      const bHas = b.ts !== null;
+      if (!aHas && !bHas) return compareByPlaylistPosition(a, b, mode);
+      if (!aHas) return 1;
+      if (!bHas) return -1;
+      if (a.ts !== b.ts) {
+        return mode === "newest" ? b.ts - a.ts : a.ts - b.ts;
+      }
+      return compareByPlaylistPosition(a, b, mode);
+    })
+    .map(({ track }) => track);
+}
+
 const api = {
   sortPlaylistTracks,
   sortPlaylistTracksByPlaylistOrder,
   sortPlaylistTracksByCollectionOrder,
+  sortTracksByCreatedAt,
   parseAddedAtEpoch,
   playlistPositionOrIndex
 };

@@ -191,8 +191,8 @@ test("getDisplayedPlaylistTracks still sorts other playlists by addedAt", () => 
   );
 });
 
-test("shouldUsePlaylistOrderSort is true for SoundCloud browser", () => {
-  assert.equal(shouldUsePlaylistOrderSort({ playlistBrowseProvider: "soundcloud" }), true);
+test("shouldUsePlaylistOrderSort is false for SoundCloud browser", () => {
+  assert.equal(shouldUsePlaylistOrderSort({ playlistBrowseProvider: "soundcloud" }), false);
   assert.equal(shouldUsePlaylistOrderSort({ selectedTitle: "My Likes" }), false);
 });
 
@@ -233,11 +233,11 @@ test("getDisplayedPlaylistTracks sorts SoundCloud likes by playlistPosition olde
 
 const soundcloudOwnedFixture = [
   { id: "t100", addedAt: "2024-06-03T00:00:00.000Z", playlistPosition: 100 },
-  { id: "t101", addedAt: "2024-06-01T00:00:00.000Z", playlistPosition: 101 },
-  { id: "t102", addedAt: "2024-06-02T00:00:00.000Z", playlistPosition: 102 }
+  { id: "t102", addedAt: "2024-06-02T00:00:00.000Z", playlistPosition: 102 },
+  { id: "t101", addedAt: "2024-06-01T00:00:00.000Z", playlistPosition: 101 }
 ];
 
-test("getDisplayedPlaylistTracks sorts SoundCloud owned playlists by position newest", () => {
+test("getDisplayedPlaylistTracks preserves fetch order for SoundCloud owned playlists newest", () => {
   const browser = {
     playlistBrowseProvider: "soundcloud",
     selectedPlaylistKind: "owned",
@@ -247,6 +247,20 @@ test("getDisplayedPlaylistTracks sorts SoundCloud owned playlists by position ne
   };
   assert.deepEqual(
     getDisplayedPlaylistTracks(browser).map((t) => t.id),
-    ["t102", "t101", "t100"]
+    ["t100", "t102", "t101"]
+  );
+});
+
+test("getDisplayedPlaylistTracks reverses fetch order for SoundCloud owned playlists oldest", () => {
+  const browser = {
+    playlistBrowseProvider: "soundcloud",
+    selectedPlaylistKind: "owned",
+    tracks: soundcloudOwnedFixture,
+    trackFilterQuery: "",
+    trackSortMode: "oldest"
+  };
+  assert.deepEqual(
+    getDisplayedPlaylistTracks(browser).map((t) => t.id),
+    ["t101", "t102", "t100"]
   );
 });

@@ -33,7 +33,6 @@ function getSoundCloudCollectionOrder(kind) {
 }
 
 function shouldUsePlaylistOrderSort(browser) {
-  if (browser?.playlistBrowseProvider === "soundcloud") return true;
   return isPlaylistOrderOnlyPlaylist(browser);
 }
 
@@ -76,6 +75,7 @@ function resolveNewestFirstFetchParams({ kind, trackCount, limit = 50 }) {
 }
 
 function playlistSortNeedsBulkFetch(browser, nextMode) {
+  if (browser?.playlistBrowseProvider === "soundcloud") return false;
   if (isSpotifyFollowedPlaylistSelection(browser)) return false;
   if (normalizePlaylistTrackSortMode(nextMode) !== "oldest") return false;
   return browser?.tracksLoadDirection !== "full";
@@ -83,17 +83,15 @@ function playlistSortNeedsBulkFetch(browser, nextMode) {
 
 function getDisplayedPlaylistTracks(browser) {
   const filterFn = window.FilterPlaylistTracks?.filterPlaylistTracks;
-  const sortApi = window.SortPlaylistTracks;
   const tracks = Array.isArray(browser?.tracks) ? browser.tracks : [];
   const filtered = filterFn ? filterFn(tracks, browser?.trackFilterQuery) : tracks;
   const mode = normalizePlaylistTrackSortMode(browser?.trackSortMode);
+  if (browser?.playlistBrowseProvider === "soundcloud") {
+    if (mode === "oldest") return [...filtered].reverse();
+    return filtered;
+  }
+  const sortApi = window.SortPlaylistTracks;
   if (shouldUsePlaylistOrderSort(browser)) {
-    if (browser?.playlistBrowseProvider === "soundcloud") {
-      const collectionOrder = getSoundCloudCollectionOrder(browser?.selectedPlaylistKind);
-      return sortApi?.sortPlaylistTracksByCollectionOrder
-        ? sortApi.sortPlaylistTracksByCollectionOrder(filtered, mode, collectionOrder)
-        : filtered;
-    }
     return sortApi?.sortPlaylistTracksByPlaylistOrder
       ? sortApi.sortPlaylistTracksByPlaylistOrder(filtered, mode)
       : filtered;

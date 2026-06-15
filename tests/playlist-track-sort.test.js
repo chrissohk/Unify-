@@ -2,7 +2,7 @@
 
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
-const { sortPlaylistTracks, sortPlaylistTracksByPlaylistOrder } = require("../lib/sortPlaylistTracks.js");
+const { sortPlaylistTracks, sortPlaylistTracksByPlaylistOrder, sortTracksByCreatedAt } = require("../lib/sortPlaylistTracks.js");
 
 const sample = [
   { id: "a", title: "Alpha", addedAt: "2024-01-01T00:00:00.000Z" },
@@ -99,6 +99,24 @@ test("sortPlaylistTracksByPlaylistOrder ignores addedAt and sorts by playlistPos
     sortPlaylistTracksByPlaylistOrder(tracks, "newest").map((t) => t.id),
     ["third", "second", "first"]
   );
+});
+
+test("sortTracksByCreatedAt sorts newest first without mutating input", () => {
+  const input = [
+    { id: "old", addedAt: "2024-01-01T00:00:00.000Z", playlistPosition: 0 },
+    { id: "new", addedAt: "2024-06-01T00:00:00.000Z", playlistPosition: 1 }
+  ];
+  const out = sortTracksByCreatedAt(input, "newest");
+  assert.deepEqual(out.map((t) => t.id), ["new", "old"]);
+  assert.equal(input[0].id, "old");
+});
+
+test("sortTracksByCreatedAt sorts oldest first on a copy", () => {
+  const tracks = [
+    { id: "new", addedAt: "2024-06-01T00:00:00.000Z", playlistPosition: 1 },
+    { id: "old", addedAt: "2024-01-01T00:00:00.000Z", playlistPosition: 0 }
+  ];
+  assert.deepEqual(sortTracksByCreatedAt(tracks, "oldest").map((t) => t.id), ["old", "new"]);
 });
 
 test("sortPlaylistTracksByPlaylistOrder newest is exact reverse of oldest", () => {

@@ -22,6 +22,21 @@ function isPlaylistOrderOnlyPlaylist(browser) {
   return /^electronics?$/i.test(title);
 }
 
+function isSoundCloudLikesSelection(browser) {
+  return (
+    browser?.playlistBrowseProvider === "soundcloud" && browser?.selectedPlaylistKind === "likes"
+  );
+}
+
+function getSoundCloudCollectionOrder(kind) {
+  return kind === "likes" ? "newest-first" : "oldest-first";
+}
+
+function shouldUsePlaylistOrderSort(browser) {
+  if (browser?.playlistBrowseProvider === "soundcloud") return true;
+  return isPlaylistOrderOnlyPlaylist(browser);
+}
+
 function computeTailPageOffset(total, limit = 50) {
   const safeTotal = Math.max(Number(total) || 0, 0);
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 50);
@@ -36,29 +51,17 @@ function computeTracksOlderOffset(pageOffset, limit = 50) {
   return Math.max(safeOffset - safeLimit, 0);
 }
 
-function shouldRefetchNewestTailPage({
-  kind,
-  trackSortMode,
-  initialOffset,
-  pageOffset,
-  collectionTotal,
-  limit = 50
-}) {
-  if (kind !== "likes" || normalizePlaylistTrackSortMode(trackSortMode) !== "newest") {
-    return false;
-  }
-  if (initialOffset !== 0 || (typeof pageOffset === "number" && pageOffset > 0)) {
-    return false;
-  }
-  const total = typeof collectionTotal === "number" ? collectionTotal : null;
-  if (total === null || total <= limit) return false;
-  return computeTailPageOffset(total, limit) > 0;
+function shouldRefetchNewestTailPage() {
+  return false;
 }
 
 function resolveNewestFirstFetchParams({ kind, trackCount, limit = 50 }) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 50);
   if (kind === "liked_songs") {
     return { offset: 0, tracksOlderOffset: null, useEdge: true };
+  }
+  if (kind === "likes") {
+    return { offset: 0, tracksOlderOffset: null, useEdge: false };
   }
   const total = typeof trackCount === "number" ? trackCount : null;
   if (total === null) {
@@ -84,7 +87,13 @@ function getDisplayedPlaylistTracks(browser) {
   const tracks = Array.isArray(browser?.tracks) ? browser.tracks : [];
   const filtered = filterFn ? filterFn(tracks, browser?.trackFilterQuery) : tracks;
   const mode = normalizePlaylistTrackSortMode(browser?.trackSortMode);
-  if (isPlaylistOrderOnlyPlaylist(browser)) {
+  if (shouldUsePlaylistOrderSort(browser)) {
+    if (browser?.playlistBrowseProvider === "soundcloud") {
+      const collectionOrder = getSoundCloudCollectionOrder(browser?.selectedPlaylistKind);
+      return sortApi?.sortPlaylistTracksByCollectionOrder
+        ? sortApi.sortPlaylistTracksByCollectionOrder(filtered, mode, collectionOrder)
+        : filtered;
+    }
     return sortApi?.sortPlaylistTracksByPlaylistOrder
       ? sortApi.sortPlaylistTracksByPlaylistOrder(filtered, mode)
       : filtered;
@@ -97,6 +106,9 @@ const api = {
   isSpotifyFollowedPlaylistSelection,
   isSpotifyLikedSongsSelection,
   isPlaylistOrderOnlyPlaylist,
+  isSoundCloudLikesSelection,
+  getSoundCloudCollectionOrder,
+  shouldUsePlaylistOrderSort,
   computeTailPageOffset,
   computeTracksOlderOffset,
   resolveNewestFirstFetchParams,

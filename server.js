@@ -1260,17 +1260,23 @@ app.get("/api/soundcloud/playlists/:playlistId/tracks", async (req, res) => {
     if (soundCloudTokenAllowsMockCatalog(tokenResult) && mockTracks) {
       const total = mockTracks.length;
       let fetchOffset = offset;
-      if (edge === "newest" && offset === 0 && total > limit) {
+      if (
+        edge === "newest" &&
+        offset === 0 &&
+        playlistId !== SOUNDCLOUD_LIKES_ID &&
+        total > limit
+      ) {
         fetchOffset = computeTailPageOffset(total, limit);
       }
       const pageEnd = Math.min(fetchOffset + limit, total);
       const slice = mockTracks.slice(fetchOffset, pageEnd);
+      const isLikes = playlistId === SOUNDCLOUD_LIKES_ID;
       return res.json({
         results: slice,
         nextOffset: pageEnd < total ? pageEnd : null,
         pageOffset: fetchOffset,
         collectionTotal: total,
-        tracksOlderOffset: computeTracksOlderOffset(fetchOffset, limit),
+        tracksOlderOffset: isLikes ? null : computeTracksOlderOffset(fetchOffset, limit),
         demoMode: true
       });
     }
@@ -1309,7 +1315,7 @@ app.get("/api/soundcloud/playlists/:playlistId/tracks", async (req, res) => {
     return typeof probe.collectionTotal === "number" ? probe.collectionTotal : null;
   };
 
-  if (edge === "newest" && offset === 0) {
+  if (edge === "newest" && offset === 0 && playlistId !== SOUNDCLOUD_LIKES_ID) {
     const total = await resolveSoundCloudTracksTotal(accessToken);
     if (typeof total === "number" && total > limit) {
       fetchOffset = computeTailPageOffset(total, limit);
@@ -1333,7 +1339,7 @@ app.get("/api/soundcloud/playlists/:playlistId/tracks", async (req, res) => {
       });
     }
     let refreshedOffset = offset;
-    if (edge === "newest" && offset === 0) {
+    if (edge === "newest" && offset === 0 && playlistId !== SOUNDCLOUD_LIKES_ID) {
       const total = await resolveSoundCloudTracksTotal(refreshResult.accessToken);
       if (typeof total === "number" && total > limit) {
         refreshedOffset = computeTailPageOffset(total, limit);
@@ -1355,13 +1361,14 @@ app.get("/api/soundcloud/playlists/:playlistId/tracks", async (req, res) => {
 
   const collectionTotal =
     typeof liveResult.collectionTotal === "number" ? liveResult.collectionTotal : null;
+  const isLikes = playlistId === SOUNDCLOUD_LIKES_ID;
   return res.json({
     results: liveResult.results || [],
     nextOffset: liveResult.nextOffset ?? null,
     pageOffset: fetchOffset,
     collectionTotal,
     total: collectionTotal,
-    tracksOlderOffset: computeTracksOlderOffset(fetchOffset, limit),
+    tracksOlderOffset: isLikes ? null : computeTracksOlderOffset(fetchOffset, limit),
     demoMode: false
   });
 });

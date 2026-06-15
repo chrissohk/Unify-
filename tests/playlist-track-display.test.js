@@ -7,6 +7,7 @@ const {
   getDisplayedPlaylistTracks,
   isSpotifyFollowedPlaylistSelection,
   isPlaylistOrderOnlyPlaylist,
+  shouldUsePlaylistOrderSort,
   computeTailPageOffset,
   computeTracksOlderOffset,
   resolveNewestFirstFetchParams,
@@ -77,15 +78,15 @@ test("resolveNewestFirstFetchParams uses offset 0 for liked songs", () => {
   });
 });
 
-test("resolveNewestFirstFetchParams uses tail offset for SoundCloud likes", () => {
+test("resolveNewestFirstFetchParams uses offset 0 for SoundCloud likes", () => {
   assert.deepEqual(resolveNewestFirstFetchParams({ kind: "likes", trackCount: 400 }), {
-    offset: 350,
-    tracksOlderOffset: 300,
+    offset: 0,
+    tracksOlderOffset: null,
     useEdge: false
   });
 });
 
-test("shouldRefetchNewestTailPage when likes opened without count but collectionTotal known", () => {
+test("shouldRefetchNewestTailPage false for SoundCloud likes", () => {
   assert.equal(
     shouldRefetchNewestTailPage({
       kind: "likes",
@@ -94,7 +95,7 @@ test("shouldRefetchNewestTailPage when likes opened without count but collection
       pageOffset: 0,
       collectionTotal: 120
     }),
-    true
+    false
   );
 });
 
@@ -187,5 +188,65 @@ test("getDisplayedPlaylistTracks still sorts other playlists by addedAt", () => 
   assert.deepEqual(
     getDisplayedPlaylistTracks(browser).map((t) => t.id),
     ["first", "third", "second"]
+  );
+});
+
+test("shouldUsePlaylistOrderSort is true for SoundCloud browser", () => {
+  assert.equal(shouldUsePlaylistOrderSort({ playlistBrowseProvider: "soundcloud" }), true);
+  assert.equal(shouldUsePlaylistOrderSort({ selectedTitle: "My Likes" }), false);
+});
+
+const soundcloudLikesNewestFirstFixture = [
+  { id: "don1", addedAt: "2024-06-04T00:00:00.000Z", playlistPosition: 0 },
+  { id: "don2", addedAt: "2024-06-03T00:00:00.000Z", playlistPosition: 1 },
+  { id: "ralph", addedAt: "2024-06-02T00:00:00.000Z", playlistPosition: 2 },
+  { id: "baby", addedAt: "2024-06-01T00:00:00.000Z", playlistPosition: 3 }
+];
+
+test("getDisplayedPlaylistTracks preserves API order for SoundCloud likes newest", () => {
+  const browser = {
+    playlistBrowseProvider: "soundcloud",
+    selectedPlaylistKind: "likes",
+    tracks: soundcloudLikesNewestFirstFixture,
+    trackFilterQuery: "",
+    trackSortMode: "newest"
+  };
+  assert.deepEqual(
+    getDisplayedPlaylistTracks(browser).map((t) => t.id),
+    ["don1", "don2", "ralph", "baby"]
+  );
+});
+
+test("getDisplayedPlaylistTracks sorts SoundCloud likes by playlistPosition oldest", () => {
+  const browser = {
+    playlistBrowseProvider: "soundcloud",
+    selectedPlaylistKind: "likes",
+    tracks: soundcloudLikesNewestFirstFixture,
+    trackFilterQuery: "",
+    trackSortMode: "oldest"
+  };
+  assert.deepEqual(
+    getDisplayedPlaylistTracks(browser).map((t) => t.id),
+    ["baby", "ralph", "don2", "don1"]
+  );
+});
+
+const soundcloudOwnedFixture = [
+  { id: "t100", addedAt: "2024-06-03T00:00:00.000Z", playlistPosition: 100 },
+  { id: "t101", addedAt: "2024-06-01T00:00:00.000Z", playlistPosition: 101 },
+  { id: "t102", addedAt: "2024-06-02T00:00:00.000Z", playlistPosition: 102 }
+];
+
+test("getDisplayedPlaylistTracks sorts SoundCloud owned playlists by position newest", () => {
+  const browser = {
+    playlistBrowseProvider: "soundcloud",
+    selectedPlaylistKind: "owned",
+    tracks: soundcloudOwnedFixture,
+    trackFilterQuery: "",
+    trackSortMode: "newest"
+  };
+  assert.deepEqual(
+    getDisplayedPlaylistTracks(browser).map((t) => t.id),
+    ["t102", "t101", "t100"]
   );
 });

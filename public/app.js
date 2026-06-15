@@ -958,6 +958,7 @@ let soundcloudPlaylistBrowser = {
   likedItems: [],
   likedNextOffset: null,
   demoMode: false,
+  playlistBrowseProvider: "soundcloud",
   selectedId: null,
   selectedTitle: "",
   selectedPlaylistKind: null,
@@ -5154,6 +5155,11 @@ const resolveNewestFirstFetchParamsFn = (params) =>
     ? playlistTrackDisplayApi.resolveNewestFirstFetchParams(params)
     : { offset: 0, tracksOlderOffset: null, useEdge: true };
 
+const isSoundCloudLikesBrowser = (browser) =>
+  playlistTrackDisplayApi?.isSoundCloudLikesSelection
+    ? playlistTrackDisplayApi.isSoundCloudLikesSelection(browser)
+    : browser?.playlistBrowseProvider === "soundcloud" && browser?.selectedPlaylistKind === "likes";
+
 const applyPlaylistTracksPageToBrowser = (browser, data, { append = false } = {}) => {
   const results = data.results || [];
   browser.tracks = append ? browser.tracks.concat(results) : results;
@@ -5174,12 +5180,14 @@ const applyPlaylistTracksPageToBrowser = (browser, data, { append = false } = {}
     if (typeof data.pageOffset === "number") {
       browser.tracksHeadOffset = data.pageOffset;
     }
-    if (data.tracksOlderOffset !== undefined) {
+    if (isSoundCloudLikesBrowser(browser)) {
+      browser.tracksNextOffset = data.nextOffset === undefined ? null : data.nextOffset;
+    } else if (data.tracksOlderOffset !== undefined) {
       browser.tracksOlderOffset = data.tracksOlderOffset;
     } else if (data.nextOffset !== undefined) {
       browser.tracksOlderOffset = data.nextOffset;
     }
-    if (data.nextOffset !== undefined) {
+    if (!isSoundCloudLikesBrowser(browser) && data.nextOffset !== undefined) {
       browser.tracksNextOffset = data.nextOffset;
     }
   } else {
@@ -5189,6 +5197,9 @@ const applyPlaylistTracksPageToBrowser = (browser, data, { append = false } = {}
 
 const resolvePlaylistTracksLoadOffset = (browser) => {
   if (browser.tracksLoadDirection === "full" || browser.trackSortMode === "oldest") {
+    return browser.tracksNextOffset;
+  }
+  if (isSoundCloudLikesBrowser(browser)) {
     return browser.tracksNextOffset;
   }
   if (browser.tracksOlderOffset !== null && browser.tracksOlderOffset !== undefined) {
@@ -5201,6 +5212,8 @@ const syncPlaylistTracksMoreVisibility = (browser, moreEl) => {
   if (!moreEl) return;
   let showMore;
   if (browser.tracksLoadDirection === "full" || browser.trackSortMode === "oldest") {
+    showMore = browser.tracksNextOffset !== null;
+  } else if (isSoundCloudLikesBrowser(browser)) {
     showMore = browser.tracksNextOffset !== null;
   } else {
     showMore =
@@ -5476,7 +5489,11 @@ const syncPlaylistTracksPaneStatus = (statusEl, browser, displayedTracks) => {
     statusEl.hidden = false;
     return;
   }
-  if ((sortMode === "newest" || sortMode === "oldest") && displayed.length > 0) {
+  if (
+    (sortMode === "newest" || sortMode === "oldest") &&
+    displayed.length > 0 &&
+    browser.playlistBrowseProvider !== "soundcloud"
+  ) {
     if (!displayed.some(trackHasAddedAt)) {
       statusEl.textContent =
         "Can't sort by date — added timestamps aren't available for these tracks.";
@@ -6234,36 +6251,6 @@ const selectSoundCloudPlaylist = async (playlistId, playlistName, { secretToken,
     if (data.tracksOlderOffset === undefined) {
       data.tracksOlderOffset = fetchParams.tracksOlderOffset ?? null;
     }
-    const collectionTotal = data.collectionTotal ?? data.total;
-    const shouldRefetchTail = playlistTrackDisplayApi?.shouldRefetchNewestTailPage
-      ? playlistTrackDisplayApi.shouldRefetchNewestTailPage({
-          kind,
-          trackSortMode: soundcloudPlaylistBrowser.trackSortMode,
-          initialOffset: fetchParams.offset,
-          pageOffset: data.pageOffset,
-          collectionTotal
-        })
-      : kind === "likes" &&
-        soundcloudPlaylistBrowser.trackSortMode === "newest" &&
-        fetchParams.offset === 0 &&
-        (data.pageOffset ?? 0) === 0 &&
-        typeof collectionTotal === "number" &&
-        collectionTotal > 50;
-    if (shouldRefetchTail) {
-      const tailParams = resolveNewestFirstFetchParamsFn({
-        kind,
-        trackCount: collectionTotal
-      });
-      if (tailParams.offset > 0) {
-        data = await fetchSoundCloudPlaylistTracksPage(
-          playlistId,
-          tailParams.offset,
-          soundcloudPlaylistBrowser.selectedSecretToken
-        );
-        data.pageOffset = tailParams.offset;
-        data.tracksOlderOffset = tailParams.tracksOlderOffset ?? null;
-      }
-    }
     applyPlaylistTracksPageToBrowser(soundcloudPlaylistBrowser, data);
     renderSoundCloudPlaylistTracks();
     soundcloudSelectedPlaylistTitle.textContent = formatSoundCloudPlaylistTitle(playlistName);
@@ -6298,9 +6285,10 @@ const loadMoreSoundCloudPlaylistTracks = async () => {
       data.pageOffset = loadOffset;
     }
     if (data.tracksOlderOffset === undefined) {
-      data.tracksOlderOffset =
-        playlistTrackDisplayApi?.computeTracksOlderOffset?.(loadOffset) ??
-        (loadOffset > 0 ? Math.max(loadOffset - 50, 0) : null);
+      data.tracksOlderOffset = isSoundCloudLikesBrowser(browser)
+        ? null
+        : playlistTrackDisplayApi?.computeTracksOlderOffset?.(loadOffset) ??
+          (loadOffset > 0 ? Math.max(loadOffset - 50, 0) : null);
     }
     applyPlaylistTracksPageToBrowser(browser, data, { append: true });
     renderSoundCloudPlaylistTracks();

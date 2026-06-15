@@ -10,6 +10,7 @@ const {
   normalizeLikedTrackRow,
   normalizePlaylistTrackRow,
   soundCloudFetchLikesSummary,
+  soundCloudListLikedTracks,
   soundCloudListLibrary,
   soundCloudListPlaylistTracksById,
   soundCloudEnrichPlaylistTrackCountsByRefs,
@@ -707,7 +708,7 @@ test("soundCloudListPlaylistTracksById fetches likes tail page when offset is at
   }
 });
 
-test("GET /api/soundcloud/playlists/:id/tracks edge=newest uses tail offset in demo mode", async () => {
+test("GET /api/soundcloud/playlists/:id/tracks edge=newest does not tail-fetch likes", async () => {
   await request(app).post("/api/auth/soundcloud/connect").expect(200);
   const res = await request(app)
     .get(
@@ -716,8 +717,34 @@ test("GET /api/soundcloud/playlists/:id/tracks edge=newest uses tail offset in d
     .expect(200);
   assert.equal(res.body.demoMode, true);
   assert.ok(Array.isArray(res.body.results));
-  assert.equal(typeof res.body.pageOffset, "number");
+  assert.equal(res.body.pageOffset, 0);
+  assert.equal(res.body.tracksOlderOffset, null);
   assert.equal(typeof res.body.collectionTotal, "number");
+});
+
+test("soundCloudListLikedTracks does not narrow access to playable only", async () => {
+  const originalFetch = global.fetch;
+  let capturedUrl = "";
+  global.fetch = async (url) => {
+    capturedUrl = String(url);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        collection: [mockLikedTrack(1)],
+        total_count: 1,
+        next_href: null
+      })
+    };
+  };
+  try {
+    const r = await soundCloudListLikedTracks({ accessToken: "tok", limit: 50, offset: 0 });
+    assert.equal(r.ok, true);
+    assert.ok(capturedUrl.includes("/me/likes/tracks"));
+    assert.ok(!capturedUrl.includes("access=playable"));
+  } finally {
+    global.fetch = originalFetch;
+  }
 });
 
 test("GET /api/soundcloud/playlists/:id/tracks demo vs unknown id", async () => {

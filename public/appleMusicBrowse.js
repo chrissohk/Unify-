@@ -31,8 +31,10 @@
     trackFilterQuery: "",
     trackSortMode: "newest",
     demoMode: false,
-    loading: false
+    loading: false,
+    playInProgress: false
   };
+  let appleMusicPlaylistPlayGeneration = 0;
 
   const el = (id) => document.getElementById(id);
 
@@ -129,6 +131,8 @@
   };
 
   const hideAppleMusicPlaylistTracksPane = () => {
+    appleMusicPlaylistPlayGeneration += 1;
+    appleMusicPlaylistBrowser.playInProgress = false;
     appleMusicPlaylistBrowser.selectedPlaylistId = null;
     appleMusicPlaylistBrowser.selectedPlaylistTitle = "";
     appleMusicPlaylistBrowser.tracks = [];
@@ -137,6 +141,207 @@
     if (panel) panel.hidden = true;
     const lib = document.querySelector(".applemusic-library-split");
     if (lib) lib.hidden = false;
+    updateAppleMusicPlaylistPlayButtons();
+  };
+
+  const bumpAppleMusicPlaylistPlayGeneration = () => {
+    appleMusicPlaylistPlayGeneration += 1;
+    return appleMusicPlaylistPlayGeneration;
+  };
+
+  const updateAppleMusicPlaylistPlayButtons = () => {
+    const panel = el("appleMusicPlaylistTracksPanel");
+    const loading = el("appleMusicPlaylistTracksLoading");
+    const panelOpen = panel && !panel.hidden;
+    const hasTracks = appleMusicPlaylistBrowser.tracks.length > 0;
+    const tracksLoading = loading && !loading.hidden;
+    const busy = appleMusicPlaylistBrowser.playInProgress;
+    const show = panelOpen && appleMusicPlaylistBrowser.selectedPlaylistId && hasTracks;
+    for (const id of ["appleMusicPlaylistPlay", "appleMusicPlaylistShufflePlay"]) {
+      const btn = el(id);
+      if (!btn) continue;
+      btn.hidden = !show;
+      btn.disabled = !show || tracksLoading || busy;
+    }
+    const playBtn = el("appleMusicPlaylistPlay");
+    const shuffleBtn = el("appleMusicPlaylistShufflePlay");
+    if (playBtn && !busy) playBtn.textContent = "Play";
+    if (shuffleBtn && !busy) shuffleBtn.textContent = "Shuffle play";
+  };
+
+  const setAppleMusicPlaylistPlayBusy = (busy, { shuffle = false } = {}) => {
+    appleMusicPlaylistBrowser.playInProgress = busy;
+    const playBtn = el("appleMusicPlaylistPlay");
+    const shuffleBtn = el("appleMusicPlaylistShufflePlay");
+    if (playBtn && busy && !shuffle) {
+      playBtn.disabled = true;
+      playBtn.textContent = "Playing…";
+    }
+    if (shuffleBtn && busy && shuffle) {
+      shuffleBtn.disabled = true;
+      shuffleBtn.textContent = "Loading…";
+    }
+    updateAppleMusicPlaylistPlayButtons();
+  };
+
+  const updateAppleMusicPlaylistPlayLoadProgress = (loaded) => {
+    const status = el("appleMusicPlaylistTracksStatus");
+    if (!status) return;
+    status.textContent = `Loading playlist… (${loaded} loaded)`;
+    status.hidden = false;
+    delete status.dataset.filterMessage;
+    delete status.dataset.sortMessage;
+  };
+
+  const ensureAllAppleMusicPlaylistTracksLoaded = async ({ onProgress } = {}) => {
+    const playlistId = appleMusicPlaylistBrowser.selectedPlaylistId;
+    if (!playlistId) return false;
+    while (appleMusicPlaylistBrowser.tracksNextOffset !== null) {
+      onProgress?.(appleMusicPlaylistBrowser.tracks.length);
+      const data = await fetchAppleMusicPlaylistTracksPage(
+        playlistId,
+        appleMusicPlaylistBrowser.tracksNextOffset
+      );
+      appleMusicPlaylistBrowser.tracks.push(...(data.items || []));
+      appleMusicPlaylistBrowser.tracksNextOffset = data.nextOffset ?? null;
+    }
+    const moreBtn = el("appleMusicTracksMore");
+    if (moreBtn) moreBtn.hidden = appleMusicPlaylistBrowser.tracksNextOffset === null;
+    return true;
+  };
+
+  const queueRemainingAppleMusicPlaylistTracks = async (playlistId, playGen, startQueuedFrom) => {
+    let queuedFrom = startQueuedFrom;
+    try {
+      while (true) {
+        if (playGen !== appleMusicPlaylistPlayGeneration) return;
+        if (appleMusicPlaylistBrowser.selectedPlaylistId !== playlistId) return;
+        const tracks = appleMusicPlaylistBrowser.tracks;
+        while (queuedFrom < tracks.length) {
+          if (playGen !== appleMusicPlaylistPlayGeneration) return;
+          if (appleMusicPlaylistBrowser.selectedPlaylistId !== playlistId) return;
+          const ok = await deps.queueTrackPayload({
+            ...deps.playlistTrackToQueuePayload(tracks[queuedFrom], "applemusic"),
+            skipAutoPlay: true
+          });
+          if (!ok) return;
+          queuedFrom += 1;
+        }
+        if (appleMusicPlaylistBrowser.tracksNextOffset === null) break;
+        const data = await fetchAppleMusicPlaylistTracksPage(
+          playlistId,
+          appleMusicPlaylistBrowser.tracksNextOffset
+        );
+        if (playGen !== appleMusicPlaylistPlayGeneration) return;
+        appleMusicPlaylistBrowser.tracks.push(...(data.items || []));
+        appleMusicPlaylistBrowser.tracksNextOffset = data.nextOffset ?? null;
+        renderAppleMusicPlaylistTracks();
+      }
+    } finally {
+      if (
+        playGen === appleMusicPlaylistPlayGeneration &&
+        appleMusicPlaylistBrowser.selectedPlaylistId === playlistId
+      ) {
+        appleMusicPlaylistBrowser.playInProgress = false;
+        updateAppleMusicPlaylistPlayButtons();
+      }
+    }
+  };
+
+  const playAppleMusicPlaylist = async () => {
+    if (!appleMusicPlaylistBrowser.selectedPlaylistId || appleMusicPlaylistBrowser.playInProgress) {
+      return;
+    }
+    const loading = el("appleMusicPlaylistTracksLoading");
+    if (loading && !loading.hidden) return;
+
+    const playGen = bumpAppleMusicPlaylistPlayGeneration();
+    const playlistId = appleMusicPlaylistBrowser.selectedPlaylistId;
+    setAppleMusicPlaylistPlayBusy(true);
+    const status = el("appleMusicPlaylistTracksStatus");
+    if (status) {
+      status.textContent = "";
+      status.hidden = true;
+    }
+    try {
+      await deps.clearUpcomingQueue();
+      if (playGen !== appleMusicPlaylistPlayGeneration) return;
+
+      const tracks = appleMusicPlaylistBrowser.tracks;
+      if (!tracks.length) {
+        alert("No tracks to play.");
+        appleMusicPlaylistBrowser.playInProgress = false;
+        updateAppleMusicPlaylistPlayButtons();
+        return;
+      }
+
+      const wasPlaying = (deps.getQueueCurrentIndex?.() ?? -1) >= 0;
+      const firstOk = await deps.playPlaylistFirstTrack(tracks[0], "applemusic", wasPlaying);
+      if (!firstOk || playGen !== appleMusicPlaylistPlayGeneration) {
+        appleMusicPlaylistBrowser.playInProgress = false;
+        updateAppleMusicPlaylistPlayButtons();
+        return;
+      }
+
+      void queueRemainingAppleMusicPlaylistTracks(playlistId, playGen, 1);
+    } catch (e) {
+      appleMusicPlaylistBrowser.playInProgress = false;
+      updateAppleMusicPlaylistPlayButtons();
+      deps.alertUnlessAuthNotice("applemusic", e.message, "Failed to play playlist");
+    }
+  };
+
+  const shufflePlayAppleMusicPlaylist = async () => {
+    if (!appleMusicPlaylistBrowser.selectedPlaylistId || appleMusicPlaylistBrowser.playInProgress) {
+      return;
+    }
+    const loading = el("appleMusicPlaylistTracksLoading");
+    if (loading && !loading.hidden) return;
+
+    const playGen = bumpAppleMusicPlaylistPlayGeneration();
+    setAppleMusicPlaylistPlayBusy(true, { shuffle: true });
+    try {
+      await deps.clearUpcomingQueue();
+      if (playGen !== appleMusicPlaylistPlayGeneration) return;
+
+      const loaded = await ensureAllAppleMusicPlaylistTracksLoaded({
+        onProgress: (n) => updateAppleMusicPlaylistPlayLoadProgress(n)
+      });
+      if (!loaded || playGen !== appleMusicPlaylistPlayGeneration) return;
+
+      const shuffled =
+        globalThis.unifyShuffleTracks?.shuffleTracks?.(appleMusicPlaylistBrowser.tracks) ||
+        [...appleMusicPlaylistBrowser.tracks];
+      if (!shuffled.length) {
+        alert("No tracks to play.");
+        return;
+      }
+
+      let queued = 0;
+      for (const track of shuffled) {
+        const ok = await deps.queueTrackPayload({
+          ...deps.playlistTrackToQueuePayload(track, "applemusic"),
+          skipAutoPlay: true
+        });
+        if (!ok) {
+          if (queued > 0) {
+            alert(`Queued ${queued} of ${shuffled.length} tracks before an error occurred.`);
+          }
+          return;
+        }
+        queued += 1;
+      }
+      await deps.playQueueIndexAfterBulkQueue();
+      renderAppleMusicPlaylistTracks();
+    } catch (e) {
+      deps.alertUnlessAuthNotice("applemusic", e.message, "Failed to shuffle play playlist");
+    } finally {
+      appleMusicPlaylistBrowser.playInProgress = false;
+      updateAppleMusicPlaylistPlayButtons();
+      if (el("appleMusicPlaylistTracksStatus") && !el("appleMusicPlaylistTracksStatus").dataset.filterMessage) {
+        renderAppleMusicPlaylistTracks();
+      }
+    }
   };
 
   const renderAppleMusicSearchResults = () => {
@@ -258,6 +463,7 @@
   const openAppleMusicPlaylist = async (playlist) => {
     if (!playlist?.id) return;
     hideAppleMusicAlbumTracksPane();
+    bumpAppleMusicPlaylistPlayGeneration();
     appleMusicPlaylistBrowser.selectedPlaylistId = playlist.id;
     appleMusicPlaylistBrowser.selectedPlaylistTitle = playlist.name || "Playlist";
     appleMusicPlaylistBrowser.tracks = [];
@@ -298,6 +504,7 @@
       appleMusicPlaylistBrowser,
       displayed
     );
+    updateAppleMusicPlaylistPlayButtons();
   };
 
   const bootstrapAppleMusicPlaylistBrowser = async () => {
@@ -410,6 +617,8 @@
       appleMusicPlaylistBrowser.trackFilterQuery = el("appleMusicPlaylistTrackFilter")?.value || "";
       renderAppleMusicPlaylistTracks();
     });
+    el("appleMusicPlaylistPlay")?.addEventListener("click", () => void playAppleMusicPlaylist());
+    el("appleMusicPlaylistShufflePlay")?.addEventListener("click", () => void shufflePlayAppleMusicPlaylist());
     const sortHost = el("appleMusicPlaylistTrackSort");
     if (sortHost) {
       sortHost.addEventListener("click", (event) => {

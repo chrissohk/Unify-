@@ -4274,6 +4274,17 @@ img.provider-badge-applemusic {
   min-width: 0;
 }
 
+.playlist-tracks-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.playlist-tracks-actions .spotify-album-hero__queue-btn {
+  flex: 0 1 auto;
+}
+
 .playlist-tracks-controls {
   display: flex;
   flex-wrap: wrap;

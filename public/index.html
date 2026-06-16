@@ -706,6 +706,26 @@
             <div class="playlist-tracks-pane" id="spotifyPlaylistTracksPanel" hidden data-testid="spotify-playlist-tracks-panel">
               <div class="playlist-tracks-header">
                 <h3 id="spotifySelectedPlaylistTitle" class="playlist-pane-title">Tracks</h3>
+                <div class="playlist-tracks-actions">
+                  <button
+                    type="button"
+                    id="spotifyPlaylistPlay"
+                    class="spotify-album-hero__queue-btn"
+                    hidden
+                    data-testid="spotify-playlist-play"
+                  >
+                    Play
+                  </button>
+                  <button
+                    type="button"
+                    id="spotifyPlaylistShufflePlay"
+                    class="spotify-album-hero__queue-btn"
+                    hidden
+                    data-testid="spotify-playlist-shuffle-play"
+                  >
+                    Shuffle play
+                  </button>
+                </div>
                 <div class="playlist-tracks-controls">
                   <div
                     id="spotifyPlaylistTrackSort"
@@ -1102,6 +1122,26 @@
             <div class="playlist-tracks-pane" id="soundcloudPlaylistTracksPanel" hidden data-testid="soundcloud-playlist-tracks-panel">
               <div class="playlist-tracks-header">
                 <h3 id="soundcloudSelectedPlaylistTitle" class="playlist-pane-title">Tracks</h3>
+                <div class="playlist-tracks-actions">
+                  <button
+                    type="button"
+                    id="soundcloudPlaylistPlay"
+                    class="spotify-album-hero__queue-btn"
+                    hidden
+                    data-testid="soundcloud-playlist-play"
+                  >
+                    Play
+                  </button>
+                  <button
+                    type="button"
+                    id="soundcloudPlaylistShufflePlay"
+                    class="spotify-album-hero__queue-btn"
+                    hidden
+                    data-testid="soundcloud-playlist-shuffle-play"
+                  >
+                    Shuffle play
+                  </button>
+                </div>
                 <div class="playlist-tracks-controls">
                   <div class="search-field playlist-tracks-search">
                   <svg
@@ -1476,6 +1516,26 @@
                 <div class="playlist-tracks-pane" id="appleMusicPlaylistTracksPanel" hidden data-testid="applemusic-playlist-tracks-panel">
                   <div class="playlist-tracks-header">
                     <h3 id="appleMusicSelectedPlaylistTitle" class="playlist-pane-title">Tracks</h3>
+                    <div class="playlist-tracks-actions">
+                      <button
+                        type="button"
+                        id="appleMusicPlaylistPlay"
+                        class="spotify-album-hero__queue-btn spotify-album-hero__queue-btn--applemusic"
+                        hidden
+                        data-testid="applemusic-playlist-play"
+                      >
+                        Play
+                      </button>
+                      <button
+                        type="button"
+                        id="appleMusicPlaylistShufflePlay"
+                        class="spotify-album-hero__queue-btn spotify-album-hero__queue-btn--applemusic"
+                        hidden
+                        data-testid="applemusic-playlist-shuffle-play"
+                      >
+                        Shuffle play
+                      </button>
+                    </div>
                     <div class="playlist-tracks-controls">
                       <div
                         id="appleMusicPlaylistTrackSort"
@@ -1670,6 +1730,7 @@
     <script src="/spotifyReloadSnapshot.js"></script>
     <script src="/volumeControl.js"></script>
     <script src="/queueAutoPlay.js"></script>
+    <script src="/shuffleTracks.js"></script>
     <script src="/filterPlaylistTracks.js"></script>
     <script src="/sortPlaylistTracks.js"></script>
     <script src="/playlistTrackDisplay.js"></script>

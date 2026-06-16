@@ -66,6 +66,8 @@ const spotifyPlaylistTracksStatus = document.getElementById("spotifyPlaylistTrac
 const spotifyPlaylistTracksLoading = document.getElementById("spotifyPlaylistTracksLoading");
 const spotifyPlaylistTracks = document.getElementById("spotifyPlaylistTracks");
 const spotifyTracksMore = document.getElementById("spotifyTracksMore");
+const spotifyPlaylistPlay = document.getElementById("spotifyPlaylistPlay");
+const spotifyPlaylistShufflePlay = document.getElementById("spotifyPlaylistShufflePlay");
 const soundcloudPlaylistLoading = document.getElementById("soundcloudPlaylistLoading");
 const soundcloudLibraryGroups = document.getElementById("soundcloudLibraryGroups");
 const soundcloudLibraryFilter = document.getElementById("soundcloudLibraryFilter");
@@ -82,6 +84,8 @@ const soundcloudPlaylistTracksStatus = document.getElementById("soundcloudPlayli
 const soundcloudPlaylistTracksLoading = document.getElementById("soundcloudPlaylistTracksLoading");
 const soundcloudPlaylistTracks = document.getElementById("soundcloudPlaylistTracks");
 const soundcloudTracksMore = document.getElementById("soundcloudTracksMore");
+const soundcloudPlaylistPlay = document.getElementById("soundcloudPlaylistPlay");
+const soundcloudPlaylistShufflePlay = document.getElementById("soundcloudPlaylistShufflePlay");
 const spotifyLibrarySplit = document.querySelector(".spotify-library-split");
 const soundcloudLibrarySplit = document.querySelector(".soundcloud-library-split");
 const queueList = document.getElementById("queueList");
@@ -943,7 +947,8 @@ let spotifyPlaylistBrowser = {
   tracksLoadDirection: "newest",
   libraryFilterQuery: "",
   trackFilterQuery: "",
-  trackSortMode: "newest"
+  trackSortMode: "newest",
+  playInProgress: false
 };
 const SPOTIFY_LIKED_SONGS_PLAYLIST_ID = "__liked_songs__";
 /** Virtual playlist id for liked tracks (matches server SOUNDCLOUD_LIKES_ID). */
@@ -969,10 +974,13 @@ let soundcloudPlaylistBrowser = {
   tracksCollectionTotal: null,
   tracksLoadDirection: "newest",
   libraryFilterQuery: "",
-  trackFilterQuery: ""
+  trackFilterQuery: "",
+  playInProgress: false
 };
 let spotifyPlaylistTracksLoadGeneration = 0;
 let soundcloudPlaylistTracksLoadGeneration = 0;
+let spotifyPlaylistPlayGeneration = 0;
+let soundcloudPlaylistPlayGeneration = 0;
 let reorderInFlight = false;
 /** Queue index while dragging an up-next row (HTML5 DnD). */
 let queueDragFromIndex = null;
@@ -3632,6 +3640,38 @@ const snapshotQueueItemForHistory = (item) => {
   };
 };
 
+const playlistTrackToQueuePayload = (track, defaultProvider) => ({
+  provider: track.provider || defaultProvider,
+  trackId: track.id,
+  title: track.title,
+  artist: track.artist,
+  durationSec: track.durationSec,
+  permalinkUrl: track.permalinkUrl,
+  imageUrl: track.imageUrl
+});
+
+const playQueueIndexAfterBulkQueue = async () => {
+  const idx = queueState.currentIndex >= 0 ? queueState.currentIndex + 1 : 0;
+  if (idx >= 0 && idx < queueState.queue.length) {
+    await playIndex(idx);
+  }
+};
+
+const playPlaylistFirstTrack = async (track, defaultProvider, wasPlaying) => {
+  const ok = await queueTrackPayload({
+    ...playlistTrackToQueuePayload(track, defaultProvider),
+    skipAutoPlay: wasPlaying
+  });
+  if (!ok) return false;
+  if (wasPlaying && queueState.currentIndex >= 0) {
+    const nextIdx = queueState.currentIndex + 1;
+    if (nextIdx < queueState.queue.length) {
+      await playIndex(nextIdx);
+    }
+  }
+  return true;
+};
+
 const queueTrackPayload = async ({
   provider,
   trackId,
@@ -3639,7 +3679,8 @@ const queueTrackPayload = async ({
   artist,
   durationSec,
   permalinkUrl,
-  imageUrl
+  imageUrl,
+  skipAutoPlay = false
 }) => {
   await ensureSpotifyActivationGesture();
   const response = await apiFetch("/api/queue", {
@@ -3667,13 +3708,15 @@ const queueTrackPayload = async ({
   }
   const created = await response.json();
   await fetchQueueState();
-  const autoPlayIndex = globalThis.unifyQueueAutoPlay?.resolveAutoPlayIndexAfterQueue?.(
-    queueState.queue,
-    queueState.currentIndex,
-    created?.id
-  );
-  if (typeof autoPlayIndex === "number" && autoPlayIndex >= 0) {
-    await playIndex(autoPlayIndex);
+  if (!skipAutoPlay) {
+    const autoPlayIndex = globalThis.unifyQueueAutoPlay?.resolveAutoPlayIndexAfterQueue?.(
+      queueState.queue,
+      queueState.currentIndex,
+      created?.id
+    );
+    if (typeof autoPlayIndex === "number" && autoPlayIndex >= 0) {
+      await playIndex(autoPlayIndex);
+    }
   }
   return true;
 };
@@ -4847,6 +4890,7 @@ const setSpotifyPlaylistTracksLoading = (loading) => {
       spotifyPlaylistTracksStatus.hidden = true;
     }
   }
+  updateSpotifyPlaylistPlayButtons();
 };
 
 const setSpotifyPlaylistStatus = (message = "") => {
@@ -5236,6 +5280,375 @@ const bumpSoundCloudPlaylistTracksLoadGeneration = () => {
   return soundcloudPlaylistTracksLoadGeneration;
 };
 
+const bumpSpotifyPlaylistPlayGeneration = () => {
+  spotifyPlaylistPlayGeneration += 1;
+  return spotifyPlaylistPlayGeneration;
+};
+
+const bumpSoundCloudPlaylistPlayGeneration = () => {
+  soundcloudPlaylistPlayGeneration += 1;
+  return soundcloudPlaylistPlayGeneration;
+};
+
+const updatePlaylistPlayLoadProgress = (statusEl, loaded) => {
+  if (!statusEl) return;
+  statusEl.textContent = `Loading playlist… (${loaded} loaded)`;
+  statusEl.hidden = false;
+  delete statusEl.dataset.filterMessage;
+  delete statusEl.dataset.sortMessage;
+};
+
+const updateSpotifyPlaylistPlayButtons = () => {
+  const panelOpen = spotifyPlaylistTracksPanel && !spotifyPlaylistTracksPanel.hidden;
+  const hasTracks = spotifyPlaylistBrowser.tracks.length > 0;
+  const tracksLoading = spotifyPlaylistTracksPanel?.classList.contains("is-tracks-loading");
+  const busy = spotifyPlaylistBrowser.playInProgress;
+  const show = panelOpen && spotifyPlaylistBrowser.selectedId && hasTracks;
+  for (const btn of [spotifyPlaylistPlay, spotifyPlaylistShufflePlay]) {
+    if (!btn) continue;
+    btn.hidden = !show;
+    btn.disabled = !show || Boolean(tracksLoading) || busy;
+  }
+  if (spotifyPlaylistPlay && !busy) spotifyPlaylistPlay.textContent = "Play";
+  if (spotifyPlaylistShufflePlay && !busy) spotifyPlaylistShufflePlay.textContent = "Shuffle play";
+};
+
+const setSpotifyPlaylistPlayBusy = (busy, { shuffle = false } = {}) => {
+  spotifyPlaylistBrowser.playInProgress = busy;
+  if (spotifyPlaylistPlay && busy && !shuffle) {
+    spotifyPlaylistPlay.disabled = true;
+    spotifyPlaylistPlay.textContent = "Playing…";
+  }
+  if (spotifyPlaylistShufflePlay && busy && shuffle) {
+    spotifyPlaylistShufflePlay.disabled = true;
+    spotifyPlaylistShufflePlay.textContent = "Loading…";
+  }
+  updateSpotifyPlaylistPlayButtons();
+};
+
+const updateSoundCloudPlaylistPlayButtons = () => {
+  const panelOpen = soundcloudPlaylistTracksPanel && !soundcloudPlaylistTracksPanel.hidden;
+  const hasTracks = soundcloudPlaylistBrowser.tracks.length > 0;
+  const tracksLoading = soundcloudPlaylistTracksPanel?.classList.contains("is-tracks-loading");
+  const busy = soundcloudPlaylistBrowser.playInProgress;
+  const show = panelOpen && soundcloudPlaylistBrowser.selectedId && hasTracks;
+  for (const btn of [soundcloudPlaylistPlay, soundcloudPlaylistShufflePlay]) {
+    if (!btn) continue;
+    btn.hidden = !show;
+    btn.disabled = !show || Boolean(tracksLoading) || busy;
+  }
+  if (soundcloudPlaylistPlay && !busy) soundcloudPlaylistPlay.textContent = "Play";
+  if (soundcloudPlaylistShufflePlay && !busy) {
+    soundcloudPlaylistShufflePlay.textContent = "Shuffle play";
+  }
+};
+
+const setSoundCloudPlaylistPlayBusy = (busy, { shuffle = false } = {}) => {
+  soundcloudPlaylistBrowser.playInProgress = busy;
+  if (soundcloudPlaylistPlay && busy && !shuffle) {
+    soundcloudPlaylistPlay.disabled = true;
+    soundcloudPlaylistPlay.textContent = "Playing…";
+  }
+  if (soundcloudPlaylistShufflePlay && busy && shuffle) {
+    soundcloudPlaylistShufflePlay.disabled = true;
+    soundcloudPlaylistShufflePlay.textContent = "Loading…";
+  }
+  updateSoundCloudPlaylistPlayButtons();
+};
+
+const ensureAllSoundcloudPlaylistTracksLoaded = async ({ loadGeneration, onProgress } = {}) => {
+  if (!soundcloudPlaylistBrowser.selectedId) return false;
+  const gen = loadGeneration ?? soundcloudPlaylistTracksLoadGeneration;
+  while (soundcloudPlaylistBrowser.tracksNextOffset !== null) {
+    if (gen !== soundcloudPlaylistTracksLoadGeneration) return false;
+    onProgress?.(soundcloudPlaylistBrowser.tracks.length);
+    const loadOffset = resolvePlaylistTracksLoadOffset(soundcloudPlaylistBrowser);
+    if (loadOffset === null || loadOffset === undefined) break;
+    const data = await fetchSoundCloudPlaylistTracksPage(
+      soundcloudPlaylistBrowser.selectedId,
+      loadOffset,
+      soundcloudPlaylistBrowser.selectedSecretToken
+    );
+    if (typeof data.pageOffset !== "number") {
+      data.pageOffset = loadOffset;
+    }
+    data.tracksOlderOffset = null;
+    if (gen !== soundcloudPlaylistTracksLoadGeneration) return false;
+    applyPlaylistTracksPageToBrowser(soundcloudPlaylistBrowser, data, { append: true });
+  }
+  soundcloudPlaylistBrowser.tracksLoadDirection = "full";
+  soundcloudPlaylistBrowser.tracksOlderOffset = null;
+  syncPlaylistTracksMoreVisibility(soundcloudPlaylistBrowser, soundcloudTracksMore);
+  return true;
+};
+
+const queueRemainingSpotifyPlaylistTracks = async (playlistId, playGen, startQueuedFrom) => {
+  let queuedFrom = startQueuedFrom;
+  try {
+    while (true) {
+      if (playGen !== spotifyPlaylistPlayGeneration) return;
+      if (spotifyPlaylistBrowser.selectedId !== playlistId) return;
+      const tracks = spotifyPlaylistBrowser.tracks;
+      while (queuedFrom < tracks.length) {
+        if (playGen !== spotifyPlaylistPlayGeneration) return;
+        if (spotifyPlaylistBrowser.selectedId !== playlistId) return;
+        const ok = await queueTrackPayload({
+          ...playlistTrackToQueuePayload(tracks[queuedFrom], "spotify"),
+          skipAutoPlay: true
+        });
+        if (!ok) return;
+        queuedFrom += 1;
+      }
+      if (spotifyPlaylistBrowser.tracksNextOffset === null) break;
+      const loadGen = spotifyPlaylistTracksLoadGeneration;
+      const data = await fetchSpotifyPlaylistTracksPage(
+        playlistId,
+        spotifyPlaylistBrowser.tracksNextOffset
+      );
+      if (playGen !== spotifyPlaylistPlayGeneration) return;
+      if (loadGen !== spotifyPlaylistTracksLoadGeneration) return;
+      applyPlaylistTracksPageToBrowser(spotifyPlaylistBrowser, data, { append: true });
+      renderSpotifyPlaylistTracks();
+    }
+  } finally {
+    if (
+      playGen === spotifyPlaylistPlayGeneration &&
+      spotifyPlaylistBrowser.selectedId === playlistId
+    ) {
+      spotifyPlaylistBrowser.playInProgress = false;
+      updateSpotifyPlaylistPlayButtons();
+    }
+  }
+};
+
+const queueRemainingSoundCloudPlaylistTracks = async (playlistId, playGen, startQueuedFrom) => {
+  let queuedFrom = startQueuedFrom;
+  try {
+    while (true) {
+      if (playGen !== soundcloudPlaylistPlayGeneration) return;
+      if (soundcloudPlaylistBrowser.selectedId !== playlistId) return;
+      const tracks = soundcloudPlaylistBrowser.tracks;
+      while (queuedFrom < tracks.length) {
+        if (playGen !== soundcloudPlaylistPlayGeneration) return;
+        if (soundcloudPlaylistBrowser.selectedId !== playlistId) return;
+        const ok = await queueTrackPayload({
+          ...playlistTrackToQueuePayload(tracks[queuedFrom], "soundcloud"),
+          skipAutoPlay: true
+        });
+        if (!ok) return;
+        queuedFrom += 1;
+      }
+      if (soundcloudPlaylistBrowser.tracksNextOffset === null) break;
+      const loadGen = soundcloudPlaylistTracksLoadGeneration;
+      const loadOffset = resolvePlaylistTracksLoadOffset(soundcloudPlaylistBrowser);
+      if (loadOffset === null || loadOffset === undefined) break;
+      const data = await fetchSoundCloudPlaylistTracksPage(
+        playlistId,
+        loadOffset,
+        soundcloudPlaylistBrowser.selectedSecretToken
+      );
+      if (typeof data.pageOffset !== "number") {
+        data.pageOffset = loadOffset;
+      }
+      data.tracksOlderOffset = null;
+      if (playGen !== soundcloudPlaylistPlayGeneration) return;
+      if (loadGen !== soundcloudPlaylistTracksLoadGeneration) return;
+      applyPlaylistTracksPageToBrowser(soundcloudPlaylistBrowser, data, { append: true });
+      renderSoundCloudPlaylistTracks();
+    }
+  } finally {
+    if (
+      playGen === soundcloudPlaylistPlayGeneration &&
+      soundcloudPlaylistBrowser.selectedId === playlistId
+    ) {
+      soundcloudPlaylistBrowser.playInProgress = false;
+      updateSoundCloudPlaylistPlayButtons();
+    }
+  }
+};
+
+const playSpotifyPlaylist = async () => {
+  if (!spotifyPlaylistBrowser.selectedId || spotifyPlaylistBrowser.playInProgress) return;
+  if (spotifyPlaylistTracksPanel?.classList.contains("is-tracks-loading")) return;
+
+  const playGen = bumpSpotifyPlaylistPlayGeneration();
+  const playlistId = spotifyPlaylistBrowser.selectedId;
+  setSpotifyPlaylistPlayBusy(true);
+  if (spotifyPlaylistTracksStatus) {
+    spotifyPlaylistTracksStatus.textContent = "";
+    spotifyPlaylistTracksStatus.hidden = true;
+  }
+  try {
+    await clearUpcomingQueue();
+    if (playGen !== spotifyPlaylistPlayGeneration) return;
+
+    const tracks = spotifyPlaylistBrowser.tracks;
+    if (!tracks.length) {
+      alert("No tracks to play.");
+      spotifyPlaylistBrowser.playInProgress = false;
+      updateSpotifyPlaylistPlayButtons();
+      return;
+    }
+
+    const wasPlaying = queueState.currentIndex >= 0;
+    const firstOk = await playPlaylistFirstTrack(tracks[0], "spotify", wasPlaying);
+    if (!firstOk || playGen !== spotifyPlaylistPlayGeneration) {
+      spotifyPlaylistBrowser.playInProgress = false;
+      updateSpotifyPlaylistPlayButtons();
+      return;
+    }
+
+    void queueRemainingSpotifyPlaylistTracks(playlistId, playGen, 1);
+  } catch (e) {
+    spotifyPlaylistBrowser.playInProgress = false;
+    updateSpotifyPlaylistPlayButtons();
+    alertUnlessAuthNotice("spotify", e.message, "Failed to play playlist");
+  }
+};
+
+const shufflePlaySpotifyPlaylist = async () => {
+  if (!spotifyPlaylistBrowser.selectedId || spotifyPlaylistBrowser.playInProgress) return;
+  if (spotifyPlaylistTracksPanel?.classList.contains("is-tracks-loading")) return;
+
+  const playGen = bumpSpotifyPlaylistPlayGeneration();
+  setSpotifyPlaylistPlayBusy(true, { shuffle: true });
+  try {
+    await clearUpcomingQueue();
+    if (playGen !== spotifyPlaylistPlayGeneration) return;
+
+    const loadGen = spotifyPlaylistTracksLoadGeneration;
+    const loaded = await ensureAllSpotifyPlaylistTracksLoaded({
+      loadGeneration: loadGen,
+      onProgress: (n) => updatePlaylistPlayLoadProgress(spotifyPlaylistTracksStatus, n)
+    });
+    if (!loaded || playGen !== spotifyPlaylistPlayGeneration) return;
+
+    const shuffled =
+      globalThis.unifyShuffleTracks?.shuffleTracks?.(spotifyPlaylistBrowser.tracks) ||
+      [...spotifyPlaylistBrowser.tracks];
+    if (!shuffled.length) {
+      alert("No tracks to play.");
+      return;
+    }
+
+    let queued = 0;
+    for (const track of shuffled) {
+      const ok = await queueTrackPayload({
+        ...playlistTrackToQueuePayload(track, "spotify"),
+        skipAutoPlay: true
+      });
+      if (!ok) {
+        if (queued > 0) {
+          alert(`Queued ${queued} of ${shuffled.length} tracks before an error occurred.`);
+        }
+        return;
+      }
+      queued += 1;
+    }
+    await playQueueIndexAfterBulkQueue();
+    renderSpotifyPlaylistTracks();
+  } catch (e) {
+    alertUnlessAuthNotice("spotify", e.message, "Failed to shuffle play playlist");
+  } finally {
+    spotifyPlaylistBrowser.playInProgress = false;
+    updateSpotifyPlaylistPlayButtons();
+    if (spotifyPlaylistTracksStatus && !spotifyPlaylistTracksStatus.dataset.filterMessage) {
+      renderSpotifyPlaylistTracks();
+    }
+  }
+};
+
+const playSoundCloudPlaylist = async () => {
+  if (!soundcloudPlaylistBrowser.selectedId || soundcloudPlaylistBrowser.playInProgress) return;
+  if (soundcloudPlaylistTracksPanel?.classList.contains("is-tracks-loading")) return;
+
+  const playGen = bumpSoundCloudPlaylistPlayGeneration();
+  const playlistId = soundcloudPlaylistBrowser.selectedId;
+  setSoundCloudPlaylistPlayBusy(true);
+  if (soundcloudPlaylistTracksStatus) {
+    soundcloudPlaylistTracksStatus.textContent = "";
+    soundcloudPlaylistTracksStatus.hidden = true;
+  }
+  try {
+    await clearUpcomingQueue();
+    if (playGen !== soundcloudPlaylistPlayGeneration) return;
+
+    const tracks = soundcloudPlaylistBrowser.tracks;
+    if (!tracks.length) {
+      alert("No tracks to play.");
+      soundcloudPlaylistBrowser.playInProgress = false;
+      updateSoundCloudPlaylistPlayButtons();
+      return;
+    }
+
+    const wasPlaying = queueState.currentIndex >= 0;
+    const firstOk = await playPlaylistFirstTrack(tracks[0], "soundcloud", wasPlaying);
+    if (!firstOk || playGen !== soundcloudPlaylistPlayGeneration) {
+      soundcloudPlaylistBrowser.playInProgress = false;
+      updateSoundCloudPlaylistPlayButtons();
+      return;
+    }
+
+    void queueRemainingSoundCloudPlaylistTracks(playlistId, playGen, 1);
+  } catch (e) {
+    soundcloudPlaylistBrowser.playInProgress = false;
+    updateSoundCloudPlaylistPlayButtons();
+    alertUnlessAuthNotice("soundcloud", e.message, "Failed to play playlist");
+  }
+};
+
+const shufflePlaySoundCloudPlaylist = async () => {
+  if (!soundcloudPlaylistBrowser.selectedId || soundcloudPlaylistBrowser.playInProgress) return;
+  if (soundcloudPlaylistTracksPanel?.classList.contains("is-tracks-loading")) return;
+
+  const playGen = bumpSoundCloudPlaylistPlayGeneration();
+  setSoundCloudPlaylistPlayBusy(true, { shuffle: true });
+  try {
+    await clearUpcomingQueue();
+    if (playGen !== soundcloudPlaylistPlayGeneration) return;
+
+    const loadGen = soundcloudPlaylistTracksLoadGeneration;
+    const loaded = await ensureAllSoundcloudPlaylistTracksLoaded({
+      loadGeneration: loadGen,
+      onProgress: (n) => updatePlaylistPlayLoadProgress(soundcloudPlaylistTracksStatus, n)
+    });
+    if (!loaded || playGen !== soundcloudPlaylistPlayGeneration) return;
+
+    const shuffled =
+      globalThis.unifyShuffleTracks?.shuffleTracks?.(soundcloudPlaylistBrowser.tracks) ||
+      [...soundcloudPlaylistBrowser.tracks];
+    if (!shuffled.length) {
+      alert("No tracks to play.");
+      return;
+    }
+
+    let queued = 0;
+    for (const track of shuffled) {
+      const ok = await queueTrackPayload({
+        ...playlistTrackToQueuePayload(track, "soundcloud"),
+        skipAutoPlay: true
+      });
+      if (!ok) {
+        if (queued > 0) {
+          alert(`Queued ${queued} of ${shuffled.length} tracks before an error occurred.`);
+        }
+        return;
+      }
+      queued += 1;
+    }
+    await playQueueIndexAfterBulkQueue();
+    renderSoundCloudPlaylistTracks();
+  } catch (e) {
+    alertUnlessAuthNotice("soundcloud", e.message, "Failed to shuffle play playlist");
+  } finally {
+    soundcloudPlaylistBrowser.playInProgress = false;
+    updateSoundCloudPlaylistPlayButtons();
+    if (soundcloudPlaylistTracksStatus && !soundcloudPlaylistTracksStatus.dataset.filterMessage) {
+      renderSoundCloudPlaylistTracks();
+    }
+  }
+};
+
 const setSpotifyPlaylistTrackSortBusy = (busy) => {
   if (!spotifyPlaylistTrackSort) return;
   spotifyPlaylistTrackSort.querySelectorAll("[data-track-sort]").forEach((btn) => {
@@ -5419,6 +5832,7 @@ const renderSpotifyPlaylistTracks = () => {
   const displayed = getDisplayedPlaylistTracks(spotifyPlaylistBrowser);
   renderTrackList(spotifyPlaylistTracks, displayed);
   syncPlaylistTracksPaneStatus(spotifyPlaylistTracksStatus, spotifyPlaylistBrowser, displayed);
+  updateSpotifyPlaylistPlayButtons();
 };
 
 const SPOTIFY_PLAYLIST_ERR_SNIPPET_LEN = 160;
@@ -5691,6 +6105,7 @@ const loadMoreSpotifyLikedPlaylists = async () => {
 const selectSpotifyPlaylist = async (playlistId, playlistName, options = {}) => {
   if (!spotifyPlaylistTracksPanel || !spotifySelectedPlaylistTitle || !spotifyPlaylistTracks) return;
   bumpSpotifyPlaylistTracksLoadGeneration();
+  bumpSpotifyPlaylistPlayGeneration();
   clearSpotifyPlaylistTrackFilter();
   const kind = options.kind || null;
   spotifyPlaylistBrowser.selectedId = playlistId;
@@ -5783,15 +6198,21 @@ const setSoundCloudTracksPaneOpen = (open) => {
 };
 
 const hideSpotifyPlaylistTracksPane = () => {
+  bumpSpotifyPlaylistPlayGeneration();
+  spotifyPlaylistBrowser.playInProgress = false;
   setSpotifyPlaylistTracksLoading(false);
   if (spotifyPlaylistTracksPanel) spotifyPlaylistTracksPanel.hidden = true;
   setSpotifyTracksPaneOpen(false);
+  updateSpotifyPlaylistPlayButtons();
 };
 
 const hideSoundCloudPlaylistTracksPane = () => {
+  bumpSoundCloudPlaylistPlayGeneration();
+  soundcloudPlaylistBrowser.playInProgress = false;
   setSoundCloudPlaylistTracksLoading(false);
   if (soundcloudPlaylistTracksPanel) soundcloudPlaylistTracksPanel.hidden = true;
   setSoundCloudTracksPaneOpen(false);
+  updateSoundCloudPlaylistPlayButtons();
 };
 
 const ensureSoundCloudPlaylistApiAvailable = async () => {
@@ -5904,6 +6325,7 @@ const setSoundCloudPlaylistTracksLoading = (loading) => {
       soundcloudPlaylistTracksStatus.hidden = true;
     }
   }
+  updateSoundCloudPlaylistPlayButtons();
 };
 
 const renderSoundCloudLibraryRows = () => {
@@ -5991,6 +6413,7 @@ const renderSoundCloudPlaylistTracks = () => {
   const displayed = getDisplayedPlaylistTracks(soundcloudPlaylistBrowser);
   renderTrackList(soundcloudPlaylistTracks, displayed);
   syncPlaylistTracksPaneStatus(soundcloudPlaylistTracksStatus, soundcloudPlaylistBrowser, displayed);
+  updateSoundCloudPlaylistPlayButtons();
 };
 
 const bootstrapSoundCloudPlaylistBrowser = async () => {
@@ -6110,6 +6533,7 @@ const selectSoundCloudPlaylist = async (playlistId, playlistName, { secretToken,
     return;
   }
   bumpSoundCloudPlaylistTracksLoadGeneration();
+  bumpSoundCloudPlaylistPlayGeneration();
   clearSoundCloudPlaylistTrackFilter();
   const kind =
     kindOpt || (playlistId === SOUNDCLOUD_LIKES_PLAYLIST_ID ? "likes" : "owned");
@@ -6374,6 +6798,12 @@ if (spotifyLikedPlaylistsMore) {
 if (spotifyTracksMore) {
   spotifyTracksMore.addEventListener("click", () => void loadMoreSpotifyPlaylistTracks());
 }
+if (spotifyPlaylistPlay) {
+  spotifyPlaylistPlay.addEventListener("click", () => void playSpotifyPlaylist());
+}
+if (spotifyPlaylistShufflePlay) {
+  spotifyPlaylistShufflePlay.addEventListener("click", () => void shufflePlaySpotifyPlaylist());
+}
 if (spotifyLibraryFilter) {
   spotifyLibraryFilter.addEventListener("input", () => {
     spotifyPlaylistBrowser.libraryFilterQuery = spotifyLibraryFilter.value;
@@ -6416,6 +6846,12 @@ if (soundcloudLikedPlaylistsMore) {
 if (soundcloudTracksMore) {
   soundcloudTracksMore.addEventListener("click", () => void loadMoreSoundCloudPlaylistTracks());
 }
+if (soundcloudPlaylistPlay) {
+  soundcloudPlaylistPlay.addEventListener("click", () => void playSoundCloudPlaylist());
+}
+if (soundcloudPlaylistShufflePlay) {
+  soundcloudPlaylistShufflePlay.addEventListener("click", () => void shufflePlaySoundCloudPlaylist());
+}
 
 initLibraryGroupToggles(spotifyLibraryGroups);
 initLibraryGroupToggles(soundcloudLibraryGroups);
@@ -6437,7 +6873,13 @@ globalThis.unifyAppleMusicBrowse?.init?.({
   getProviders: () => providers,
   probePlaylistMetaFeature,
   playlistApiUnavailableMessage,
-  queueTrackPayload
+  queueTrackPayload,
+  clearUpcomingQueue,
+  playIndex,
+  getQueueCurrentIndex: () => queueState.currentIndex,
+  playPlaylistFirstTrack,
+  playQueueIndexAfterBulkQueue,
+  playlistTrackToQueuePayload
 });
 
 if (queueClearAll) {
